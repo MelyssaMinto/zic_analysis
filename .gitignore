@@ -1,2 +1,6 @@
 scripts/*/*.RData
 scripts/*.RData
+.DS_Store
+*/.DS_Store
+*/*/.DS_Store
+
