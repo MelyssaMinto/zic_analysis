@@ -1,0 +1,346 @@
+---
+title: "Figure 3"
+output: html_notebook
+---
+
+In this document, we reproduce figures from the Zic mansuscript
+
+```{r setup}
+library(tidyverse)
+library(readxl)
+library(cowplot)
+library(ggrepel)
+library(ggtext)
+library(VennDiagram)
+library(clusterProfiler)
+library(ReactomePA)
+library(AnnotationDbi)
+library(org.Mm.eg.db)
+```
+
+```{r define functions}
+
+plot_bart_homer <- function(cond1, bart_data, homer_data, s){
+  dat1 = bart_data %>% 
+  dplyr::filter(!grepl("ZIC", TF)) %>% 
+  dplyr::filter(gene_sig %in% c("UP", "DOWN")) %>% 
+  dplyr::filter(bart_sig == "Enriched") %>% 
+  dplyr::mutate(label_f = ifelse(str_to_lower(TF) != str_to_lower(SYMBOL), paste0(TF, "(", SYMBOL, ")"), TF)) 
+  
+  dat2 = homer_data %>% 
+  dplyr::filter(!grepl("ZIC", SYMBOL, ignore.case = T)) %>% 
+  dplyr::filter(gene_sig %in% c("UP", "DOWN")) %>% 
+  dplyr::filter(`q-value (Benjamini)` < 0.05) %>% 
+   dplyr::mutate(label_f = ifelse(str_to_lower(name) != str_to_lower(SYMBOL), paste0(name, "(", SYMBOL, ")"), name))
+  
+  common_sig_TFs = intersect(str_to_title(dat1$SYMBOL), str_to_title(dat2$SYMBOL))
+  common_TFs = intersect(str_to_title(bart_data$SYMBOL), str_to_title(homer_data$SYMBOL))
+
+ 
+   facet_labels = c("ChIP Enrichment", "Motif Enrichment")
+   names(facet_labels) = c("bart", "homer")
+  
+    bind_rows(list(bart = dat1 %>% 
+                     dplyr::mutate(label_f = ifelse(str_to_title(SYMBOL) %in% common_sig_TFs, paste0("*", label_f), str_to_title(label_f)),
+                                   label_f = ifelse(str_to_title(SYMBOL) %in% common_TFs, paste0('<span style="color:blue;font-weight:bold">', label_f, '</span>' ), label_f),
+                                   label_f = fct_reorder(label_f, log2FoldChange)) %>% 
+                     dplyr::select(log2FoldChange, label_f),
+                   homer = dat2 %>% 
+                     dplyr::mutate(label_f = ifelse(str_to_title(SYMBOL) %in% common_sig_TFs, paste0("*", label_f), str_to_title(label_f)),
+                                   label_f = ifelse(str_to_title(SYMBOL) %in% common_TFs, paste0('<span style="color:blue;font-weight:bold">', label_f, '</span>' ), label_f),
+                                   label_f = fct_reorder(label_f, log2FoldChange)) %>% 
+                     dplyr::select(log2FoldChange, label_f)),
+                   .id = "id") %>% 
+      ggplot(aes(y = log2FoldChange, x = label_f, fill = id)) +
+        geom_bar(stat = "identity") +
+        geom_hline(yintercept = 0,color = "grey",linetype = "dashed") +
+        coord_flip() +
+        labs(x = "") +
+        facet_grid(id~., space = "free_y", scales = "free_y",  labeller = as_labeller(facet_labels)) +
+        #scale_y_continuous(limits = c(-11,5), expand = c(0, 0))+
+        scale_fill_manual(limits = c("bart", "homer"), values = c("#FF6308", "black")) +
+        theme_classic() +
+        theme(axis.line.y = element_blank(),
+              axis.text = element_text(size = s),
+              axis.text.x = element_markdown(),
+              axis.text.y = element_markdown(),
+              strip.text = element_text(size = s),
+              legend.position = "none",
+              plot.title = element_text(hjust = 0.45)) +
+        ylab(bquote("Gene Expression" ~ log[2] ~ "(P60/P7)")) +
+        ggtitle(str_to_title(gsub("_", " ", cond1)))
+    
+
+
+}
+
+
+
+
+plot_distinct <- function(data, cond1, cond2, label1, label2) {
+  dis = data %>% 
+    dplyr::filter(gene_sig %in% c("UP", "DOWN")) %>% 
+
+    dplyr::mutate(label = case_when(enriched_in %in% "Similar Enrichment" ~ "" ,
+                                    TRUE ~ str_to_title(TF))) %>% 
+    dplyr::select(-SYMBOL, -gene_sig, -ends_with("mean")) %>% 
+    distinct() 
+  
+ dis_table = dis$enriched_in %>% 
+   fct_relabel(~ str_to_title(gsub("_", " ", .x))) %>% 
+   fct_count()
+colnames(dis_table) = c("Enrichment", "n")
+ 
+  dis %>% 
+    ggplot(aes(x = -log10(get(cond1)), y = -log10(get(cond2)), color = enriched_in, label = label )) +
+    geom_point(size = 0.5) +
+      geom_text_repel(show.legend = F, max.overlaps = 20) +
+      theme_classic() +
+      labs(x = paste0(gsub("_", " ", cond1), " -log10(adj p-val)"), y = paste0(gsub("_", " ", cond2), " -log10(adj p-val)") ) +
+      scale_color_manual(name = "", limits = c(cond1, cond2, "Similar Enrichment"), labels = c(label1, label2, "Similar \nEnrichment"), values = c("dodgerblue4", "darkorange4", "grey") ) +
+     annotate(geom = "table", label = list(dis_table), x = 4.5, y = 4.5, fill = "white" ,  table.theme = ttheme_gtlight)+
+      scale_y_continuous(limits = c(0, 4.5)) +
+      scale_x_continuous(limits = c(0, 4.5)) +
+      theme(legend.position = "bottom") +
+       guides(colour = guide_legend(override.aes = list(size=3)))
+}
+
+
+plot_distinct_gene <- function(data, cond1, cond2, gene_expr_level) {
+  label1 = paste0('<span style="color:dodgerblue4">', str_to_title(gsub("_", "\n", cond1)), '</span>')
+  label2 = paste0('<span style="color:darkorange4">', str_to_title(gsub("_", "\n", cond2)), '</span>')
+   facet_labels = c(label1, label2, "Up-regulated", "Down-regulated")
+   names(facet_labels) = c(cond1, cond2, "UP" ,"DOWN")
+   
+  data %>% 
+    dplyr::filter(gene_sig %in% c("UP", "DOWN")) %>% 
+    dplyr::filter(enriched_in %in% c(cond1, cond2)) %>% 
+    dplyr::select(-all_of(cond1), -all_of(cond2)) %>% 
+    dplyr::filter(baseMean > gene_expr_level) %>% 
+    dplyr::mutate(label = ifelse(str_to_lower(TF) != str_to_lower(SYMBOL), paste0(TF, "(", SYMBOL, ")"), TF),
+                  label = fct_reorder(label, log2FoldChange)) %>% 
+    ggplot(aes(y = log2FoldChange, x = label )) +
+    geom_col(size = 0.5, position = position_dodge(), fill = "black") +
+    theme_classic() +
+    scale_x_discrete(labels = function(x) str_wrap(x, width = 5))+
+    facet_wrap(~enriched_in, scales = "free", labeller = as_labeller(facet_labels)) +
+    coord_flip() +
+    theme(legend.position = "bottom", strip.text.x = element_markdown() , axis.text.y = element_text(size = 8)) +
+    labs(x = "Enriched TFs" , y = "Gene Expression log2(P60/P7)") 
+  
+  
+}
+
+plot_pathways <-function(data, cond1, cond2, gene_expr_level){
+  label1 = paste0('<span style="color:dodgerblue4">', str_to_title(gsub("_", " ", cond1)), '</span>')
+  label2 = paste0('<span style="color:darkorange4">', str_to_title(gsub("_", " ", cond2)), '</span>')
+  
+  # pull out significant and distint TFs
+  dat = data %>% 
+    dplyr::filter(gene_sig %in% c("UP", "DOWN")) %>% 
+    dplyr::filter(enriched_in %in% c(cond1, cond2)) %>% 
+    dplyr::filter(baseMean > gene_expr_level) 
+
+  # pull out gene lists
+  genes_1 = mapIds(org.Mm.eg.db, keys =dat$SYMBOL[dat$enriched_in == cond1] , column ="ENTREZID", keytype="SYMBOL")
+  genes_2 = mapIds(org.Mm.eg.db, keys =dat$SYMBOL[dat$enriched_in == cond2] , column ="ENTREZID", keytype="SYMBOL")
+  
+  # erichment analysis
+  kk2 <- enrichKEGG(gene = genes_2, organism = "mmu", pvalueCutoff = 0.05)
+  kk1 <- enrichKEGG(gene = genes_1, organism = "mmu", pvalueCutoff = 0.05)
+  
+  # plotting
+  facet_labels = c(label1, label2)
+  names(facet_labels) = c(cond1, cond2)
+     
+  bind_rows(as.data.frame(kk1) %>% dplyr::mutate(id = cond1),
+            as.data.frame(kk2) %>% dplyr::mutate(id = cond2)) %>% 
+    dplyr::mutate(GeneRatio_frac = as.numeric(str_extract(GeneRatio, "[^/]+")) / as.numeric(str_extract(GeneRatio, "(?<=/).+"))) %>% 
+    dplyr::mutate(Description = fct_reorder(Description, GeneRatio_frac),
+                  GeneRatio = fct_reorder(GeneRatio, GeneRatio_frac),
+                  Count = round(Count)) %>% 
+    ggplot(aes(x = GeneRatio, y = Description, size = Count, color = p.adjust))+
+    geom_point() +
+    facet_grid(id~., scales = "free_y",space = "free_y", labeller = as_labeller(facet_labels))+
+    theme_classic() +
+      theme(plot.title = element_markdown(), 
+             strip.text.y = element_markdown())+
+    scale_y_discrete(labels = function(x) str_wrap(x, width = 20))+
+    scale_color_viridis_c(end = .9)+
+    labs(y = "")
+
+
+}
+
+
+
+```
+
+```{r read in data}
+activ_homer = read_tsv("../results/homer_results/activating/homer_results.tsv")
+repr_homer = read_tsv("../results/homer_results/repressive/homer_results.tsv")
+early_activ_homer = read_tsv("../results/homer_results/P7_peaks_DOWNGenes/homer_results.tsv")
+early_repr_homer = read_tsv("../results/homer_results/P7_peaks_UpGenes/homer_results.tsv")
+late_activ_homer = read_tsv("../results/homer_results/P60_peaks_UpGenes/homer_results.tsv")
+late_repr_homer = read_tsv("../results/homer_results/P60_peaks_DOWNGenes/homer_results.tsv")
+early_homer = read_tsv("../results/homer_results/early/homer_results.tsv")
+late_homer = read_tsv("../results/homer_results/late/homer_results.tsv")
+early_all_homer = read_tsv("../results/homer_results/P60_peaks_DOWNGenes/homer_results.tsv")
+late_all_homer = read_tsv("../results/homer_results/P60_peaks_UpGenes//homer_results.tsv")
+
+activ_bart = read_tsv("../results/peak_gene/activating/bart_results.txt")
+repr_bart = read_tsv("../results/peak_gene/repressive/bart_results.txt")
+early_activ_bart = read_tsv("../results/peak_gene/early_activating/bart_results.txt")
+early_repr_bart = read_tsv("../results/peak_gene/early_repressive/bart_results.txt")
+late_activ_bart = read_tsv("../results/peak_gene/late_activating/bart_results.txt")
+late_repr_bart = read_tsv("../results/peak_gene/late_repressive/bart_results.txt")
+early_bart = read_tsv("../results/peak_gene/early/bart_results.txt")
+late_bart = read_tsv("../results/peak_gene/late/bart_results.txt")
+early_all_bart = read_tsv("../results/DiffExp_ZicChIP/early/bart_results.txt")
+late_all_bart = read_tsv("../results/DiffExp_ZicChIP/late/bart_results.txt")
+
+earlyVlate_act = read_tsv("../results/peak_gene/rrho/early_late_activating.txt")
+early_actVrep = read_tsv("../results/peak_gene/rrho/early_activating_repressive.txt")
+earlyVlate_rep = read_tsv("../results/peak_gene/rrho/early_late_repressive.txt")
+late_actvrep = read_tsv("../results/peak_gene/rrho/late_activating_repressive.txt")
+actvrep = read_tsv("../results/peak_gene/rrho/activating_repressive.txt")
+earlyvlate = read_tsv("../results/peak_gene/rrho/early_late.txt")
+early_allVloop = read_tsv("../results/peak_gene/rrho/early_allvloop.txt")
+late_allVloop = read_tsv("../results/peak_gene/rrho/late_allvloop.txt")
+
+earlyvlate_all = read_tsv("../results/peak_gene/rrho/earlyvlate_all.txt")
+
+```
+
+```{r supp figure panel A}
+homer_tfs = early_homer %>% 
+  dplyr::mutate(SYMBOL = str_to_title(SYMBOL)) %>% 
+  dplyr::select(SYMBOL) %>% 
+  drop_na() %>% 
+  distinct() %>% 
+  pull(SYMBOL) 
+
+
+bart_tfs = early_bart %>% 
+  dplyr::select(SYMBOL) %>% 
+  drop_na() %>% 
+  distinct() %>% 
+  pull(SYMBOL)
+
+
+png("../figures/venn_diagram.png")
+venn.plot = venn.diagram(
+  x = list(bart_tfs, homer_tfs),
+  category.names = c("Bart" , "Homer" ),
+  filename = NULL,
+  fill = c( "#FF6308", "black"),
+  label.col = c("black", "blue", "black"),
+  fontface ="bold",
+  cex = 5,
+  cat.cex = 3,
+  cat.fontface = "bold",
+  cat.dist = c(.005, 0.0005), 
+  cat.pos= c(-45, 0),
+  rotation.degree = 45, 
+  disable.logging  = T
+)
+
+grid.draw(venn.plot)
+dev.off()
+
+```
+
+
+```{r supp fig 4, fig.height= 20, fig.width=15}
+
+axis_text_size = 13
+sa = rasterGrob(readPNG("../figures/venn_diagram.png"))
+sb = plot_bart_homer("early_activating", early_activ_bart, early_activ_homer, axis_text_size)
+sc = plot_bart_homer("late_activating", late_activ_bart, late_activ_homer, axis_text_size)
+sd = plot_bart_homer("late_repressive", late_repr_bart, late_repr_homer, axis_text_size)
+se = plot_bart_homer("early_repressive", early_repr_bart, early_repr_homer, axis_text_size)
+sf = plot_bart_homer("early", early_bart, early_homer, axis_text_size)
+sg = plot_bart_homer("late", late_bart, late_homer, axis_text_size)
+
+plot_bart_homer("early_all", early_all_bart, early_all_homer, axis_text_size)
+plot_bart_homer("late_all", late_all_bart, late_all_homer, axis_text_size)
+
+#png("../figures/supp_figure4.png", height = 20, width = 15, res = 300, units = "in" )
+ plot_grid(sa,
+           plot_grid(sb,sc,sd,se, sf,sg,  nrow = 2, labels = c("B", "C", "D", "E", "F", "G")),
+           labels = c("A", ""),
+           nrow = 2, 
+           rel_heights  = c(.1, .9),
+           axis = "l"
+           )
+#dev.off()
+
+```
+
+Supplemental Figure . Mouse in-vivo ChIP overlap enrichement (BART) and motif enrichement (HOMER) of Zic ChIP peaks. A) Overlap in TF ChIP profiles in each algorithm. TF enrichement was calculated by timepoint and gene regulation in the following categories B) Early Activaitng, C) Late Activating D) Early Repressive E) Late Repressive F) Early, E) Late.  *Denotes predicted TFs that are common between the ChIP overlap enrichement and motf enrichment. Color of TFs on y-axis indicate whether that TF was in both datasets (blue) ot not(black).
+
+
+```{r distinct, fig.height=4, fig.width=4}
+
+a1 = plot_distinct(earlyVlate_act, "early_activating", "late_activating", "Distinct Early\nActivating", "Distinct Late\nActivating" )
+b1 = plot_distinct(earlyVlate_rep, "early_repressive", "late_repressive", "Distinct Early\nRepressive", "Distinct Late\nRepressive" )
+c1 = plot_distinct(earlyvlate, "early", "late", "Distinct Early", "Distinct Late" )
+d1 = plot_distinct(earlyvlate_all, "early_all", "late_all", "Distinct Early", "Distinct Late" )
+
+a1
+b1
+c1
+d1
+
+
+```
+
+```{r geneExpression, fig.height=7, fig.width=8}
+gene_expr_filt = 100
+a2 = plot_distinct_gene(earlyVlate_act, "early_activating", "late_activating", gene_expr_filt )
+b2 = plot_distinct_gene(earlyVlate_rep, "early_repressive", "late_repressive", gene_expr_filt )
+c2 = plot_distinct_gene(earlyvlate, "early", "late", gene_expr_filt )
+
+d2 = plot_distinct_gene(earlyvlate_all, "early_all", "late_all", gene_expr_filt )
+
+a2
+b2
+c2
+d2
+
+```
+```{r pathways, fig.height=7, fig.width=8}
+a3 = plot_pathways(earlyVlate_act, "early_activating", "late_activating", gene_expr_filt )
+b3 = plot_pathways(earlyVlate_rep, "early_repressive", "late_repressive", gene_expr_filt )
+c3 = plot_pathways(earlyvlate, "early", "late", gene_expr_filt )
+d3 = plot_pathways(earlyvlate_all, "early_all", "late_all", gene_expr_filt )
+
+a3
+b3
+c3
+d3 
+```
+
+
+```{r figure 3, fig.height=10, fig.width=12}
+
+png("../figures/figure3.png", height = 12, width = 12, res = 300, units = "in" )
+  plot_grid( d1, d2,d3,c1, c2, c3, nrow = 2, labels = LETTERS[1:6])
+dev.off()
+
+
+```
+Figure 3. Distinct TFs enriched between early and late regulatory modes. In-vivo ChIP overlap enrichment of Zic Zic ChIP peaks that were separated by mapped gene expression by early repressive, late repressive, early activating, and late activating. A ranked hyper-geometric overlap test was performed to identify the TFs distinctly enriched in each set between the A) Early and Late activating Zic peaks and between the D) Early and late repressive Zic peaks and G) All early and all late peaks. B) E), H) The gene expression of these distinct TFs whose expression was also temporally regulated. C)F)I) Enriched KEGG Pathways for each comparison. 
+
+```{r, fig.width=10, fig.height=7}
+sa1 = plot_distinct(early_actVrep, "early_activating", "early_repressive", "Distinct \nActivating", "Distinct \nRepressive" )
+sa2 = plot_distinct(late_actvrep, "late_activating", "late_repressive", "Distinct \nActivating", "Distinct \nRepressive" )
+sa3 = plot_distinct(actvrep, "activating", "repressive", "Distinct \nActivating", "Distinct \nRepressive" )
+sa4 = plot_distinct(early_allVloop, "early_all", "early", "Distinct \nAll Zic P7", "Distinct \nLooped Zic P7")
+sa5 = plot_distinct(late_allVloop, "late_all", "late", "Distinct \nAll Zic P60", "Distinct \nLooped Zic P60")
+
+plot_grid(sa1, sa2, sa3, sa4, sa5, labels = LETTERS[1:5])
+```
+
+
+Supp Figure: Litte to no Distinct TFs based on mapped genes 

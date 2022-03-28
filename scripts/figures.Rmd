@@ -1,0 +1,154 @@
+---
+title: "Paper Figures"
+output: html_notebook
+---
+
+In this document, we reproduce figures from the Zic mansuscript
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+## Load packages
+library(tidyverse)
+library("ggpmisc")
+library(GenomicRanges)
+library(rtracklayer)
+library(Gviz) 
+library(TxDb.Mmusculus.UCSC.mm10.knownGene)
+library(biomaRt)
+library(GenomicInteractions)
+library(org.Mm.eg.db)
+options(ucscChromosomeNames=FALSE) 
+
+ # set scheme
+scheme <- getScheme(name=getOption("Gviz.scheme"))
+scheme$GdObject$col.title = "black"
+scheme$GdObject$col.axis = "black"
+scheme$GdObject$background.title = "black"
+scheme$GdObject$fontcolor = "black"
+scheme$GdObject$rotation.title = 90
+scheme$GeneRegionTrack$transcriptAnnotation = "symbol"
+scheme$GeneRegionTrack$col = "black"
+scheme$GeneRegionTrack$fill = "black"
+scheme$GeneRegionTrack$collapseTranscripts = TRUE
+scheme$DataTrack$fill.histogram = "darkblue"
+scheme$DataTrack$col.histogram = "darkblue"
+scheme$GdObject$col.border.title = "transparent"
+
+addScheme(scheme, "myScheme")
+options(Gviz.scheme="myScheme")
+
+```
+
+
+```{r define functions}
+#' Title
+#'
+#' @param gene - gene to plot
+#' @param tracks - GViz tracks to plot
+#' @param expand_l - Number of base-pairs to expand to the left
+#' @param expand_r - Number of base-pairs to expand to the right
+#' @param ylim - y-axis lim
+#'
+#' @return 
+#' @export
+
+plot_track <- function(gene, tracks,  expand_l= 0, expand_r = 0, ylim = c(0,3)){
+  # getting gene info
+  id = mapIds(org.Mm.eg.db, keys =gene , column ="ENTREZID", keytype="SYMBOL")
+  info = select(TxDb.Mmusculus.UCSC.mm10.knownGene, keys = id  , columns=c("TXNAME", "TXSTART", "TXEND", "TXCHROM"), keytype="GENEID")
+  start = info$TXSTART[1]
+  end = info$TXEND[1]
+  chr = info$TXCHROM[1]
+  
+  # setting up plot inputs
+  start = start - expand_l
+  end = end + expand_r  
+
+  
+    #plot
+    plotTracks(tracks,  
+               from=start,
+               to=end, 
+               chromosome=chr,
+               type="hist",
+               window = 1000,
+               ylim = ylim,
+               sizes = rep(1, length(tracks)))
+
+  
+  
+  
+}
+
+```
+
+
+```{r figure 1, fig.height=6, fig.width=11}
+## prepare data
+
+# mm10 genome info
+genomeAxis <- GenomeAxisTrack(name="MyAxis") 
+customFromTxDb <- GeneRegionTrack(TxDb.Mmusculus.UCSC.mm10.knownGene) 
+
+# knownGenes <- UcscTrack(genome = "mm10", chromosome = "chrX", 
+#                         track = "knownGene", from = from, to = to,
+#                         trackType = "GeneRegionTrack", 
+#                         rstarts = "exonStarts", rends = "exonEnds", 
+#                         gene = "name", symbol = "name", 
+#                         transcript = "name", strand = "strand", 
+#                         fill = "#8282d2", name = "UCSC Genes")
+
+# Chromatin Links
+# > Source: Yamada et al. 2019 https://www.nature.com/articles/s41586-019-1190-7
+plac_file <- read_delim("../../sequencing_data/Yamada/combined_MAPS_peaks.txt", 
+                        delim = "\t", escape_double = FALSE, col_names = FALSE, trim_ws = TRUE)
+interaction_track <- InteractionTrack(GenomicInteractions(GRanges(seqnames = plac_file$X1, ranges = IRanges(plac_file$X2, plac_file$X3)), 
+                                                          GRanges(seqnames = plac_file$X4, ranges = IRanges(plac_file$X5, plac_file$X6))), 
+                                      name = "H3K4me3 PLAC-seq")
+
+# Zic ChIP, H3K27ac ChIP, DHS-seq, RNA-seq
+# > Source: Frank et al. 2015 https://www.nature.com/articles/nn.3995
+# > data was reprocessed to mm10 and reanalyzed 
+p7_zic_bw <- DataTrack(import.bw("../../sequencing_data/preprocessed_data/zic_chip/SRR1557091/SRR1557091_norm.bw", as="GRanges"), 
+                   genome = "mm10",name = "Zic P7") 
+p60_zic_bw <- DataTrack(import.bw("../../sequencing_data/preprocessed_data/zic_chip/SRR1557093/SRR1557093_norm.bw", as="GRanges"), 
+                    genome = "mm10", name = "Zic P60") 
+p7_dnase_bw <-  DataTrack(import.bw("../../sequencing_data/preprocessed_data/DNase/SRR1557041/SRR1557041.bw", as="GRanges"),
+                           genome = "mm10",name = "DNase P7") 
+p60_dnase_bw <-  DataTrack(import.bw("../../sequencing_data/preprocessed_data/DNase/SRR1557047/SRR1557047.bw", as="GRanges"), 
+                            genome = "mm10",name = "DNase P60") 
+p7_k27ac_bw <-  DataTrack(import.bw("../../sequencing_data/preprocessed_data/H3K27ac/SRR3993161/SRR3993161_norm.bw", as="GRanges"), 
+                           genome = "mm10",name = "H3K27ac P7") 
+p60_k27ac_bw <-  DataTrack(import.bw("../../sequencing_data/preprocessed_data/H3K27ac/SRR3993163/SRR3993163_norm.bw", as="GRanges"), 
+                            genome = "mm10",name = "H3K27ac P60") 
+p7_rna_bw <-  DataTrack(import.bw("../../sequencing_data/preprocessed_data/RNA/p7_b1/p7_b1_norm.bw", as="GRanges"), 
+                           genome = "mm10",name = "RNA P7") 
+p60_rna_bw <-  DataTrack(import.bw("../../sequencing_data/preprocessed_data/RNA/p60_b1/p60_b1_norm.bw", as="GRanges"), 
+                            genome = "mm10",name = "RNA P60") 
+
+
+
+## plot
+  tracks <- list(interaction_track,
+               p7_zic_bw,
+               p60_zic_bw, 
+               p7_dnase_bw,
+               p60_dnase_bw,
+               p7_k27ac_bw,
+               p60_k27ac_bw,
+               p7_rna_bw,
+               p60_rna_bw,
+               customFromTxDb,
+               genomeAxis)
+  
+  
+
+# plot
+plot_track("Grin2c",tracks,  expand_l = 100000, expand_r = 1000)
+
+# plot_track("Wnt7b",  expand_l = 100000, expand_r = 10000)
+
+```
+
+

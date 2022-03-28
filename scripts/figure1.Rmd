@@ -1,0 +1,504 @@
+---
+title: "Figure 1"
+output: html_notebook
+---
+
+In this document, we reproduce figures from the Zic mansuscript
+
+```{r setup}
+library(png)
+library(tidyverse)
+library(cowplot)
+library(gridExtra)
+knitr::opts_chunk$set(echo = TRUE)
+library("ggpmisc")
+library(GenomicRanges)
+library(rtracklayer)
+library(Gviz) 
+library(TxDb.Mmusculus.UCSC.mm10.knownGene)
+library(biomaRt)
+library(org.Mm.eg.db)
+library(forcats)
+options(ucscChromosomeNames=FALSE) 
+library(ggforce)
+library(ggsignif)
+library(scales)
+```
+
+```{r}
+#' Title
+#'
+#' @param gene - gene to plot
+#' @param tracks - GViz tracks to plot
+#' @param expand_l - Number of base-pairs to expand to the left
+#' @param expand_r - Number of base-pairs to expand to the right
+#' @param ylim - y-axis lim
+#'
+#' @return 
+#' @export
+plot_track_coords <- function(tracks, chr, start, end , ylim = c(0,3)){
+ 
+  gencode <- UcscTrack(genome = "mm10", chromosome = chr,
+                      track = "All GENCODE VM25", from = start, to = end,
+                      trackType = "GeneRegionTrack", 
+                      rstarts = "exonStarts", rends = "exonEnds", 
+                      gene = "name",  symbol = "name2", 
+                      transcript = "name", strand = "strand",
+                      name = "transcripts", showID=TRUE)
+  
+  tracks$gencode = gencode
+
+  
+    #plot
+    plotTracks(tracks,  
+               from=start,
+               to=end, 
+               chromosome=chr,
+               type="hist",
+               window = 1000,
+               ylim = ylim)
+
+  
+  
+  
+}
+
+
+plot_track <- function(gene, tracks,  expand_l= 0, expand_r = 0, ylim = c(0,3)){
+  # getting gene info
+  id = mapIds(org.Mm.eg.db, keys =gene , column ="ENTREZID", keytype="SYMBOL")
+  info = biomaRt::select(TxDb.Mmusculus.UCSC.mm10.knownGene, keys = id  , columns=c("TXNAME", "TXSTART", "TXEND", "TXCHROM"), keytype="GENEID")
+  start = info$TXSTART[1]
+  end = info$TXEND[1]
+  chr = info$TXCHROM[1]
+  
+  # setting up plot inputs
+  start = start - expand_l
+  end = end + expand_r  
+  
+  gencode <- UcscTrack(genome = "mm10", chromosome = chr,
+                      track = "All GENCODE VM25", from = start, to = end,
+                      trackType = "GeneRegionTrack", 
+                      rstarts = "exonStarts", rends = "exonEnds", 
+                      gene = "name",  symbol = "name2", 
+                      transcript = "name", strand = "strand",
+                      name = "transcripts", showID=TRUE)
+  
+  tracks$gencode = gencode
+
+  
+    #plot
+    plotTracks(tracks,  
+               from=start,
+               to=end, 
+               chromosome=chr,
+               type="hist",
+               window = 1000,
+               ylim = ylim)
+
+  
+  
+  
+}
+
+
+#' Title
+#'
+#' @param data 
+#' @param xlab 
+#' @param regulation 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+plot_fam <- function(data, xlab, regulation, baseMeanCutoff = 100){
+  
+  
+ data %>% 
+  dplyr::filter(baseMean >= baseMeanCutoff) %>% 
+  dplyr::filter(`q-value (Benjamini)`<0.05) %>% 
+  dplyr::mutate(reg = case_when(log2FoldChange >= 1 ~ "UP", 
+                                log2FoldChange <= -1 ~ "DOWN",
+                                TRUE ~ "N.S.") ) %>% 
+  dplyr::filter(reg %in% regulation) %>% 
+  dplyr::select(fam) %>% 
+  # cleaning up family names
+  dplyr::mutate(fam = strsplit(as.character(fam), ",")) %>% 
+  unnest(fam) %>% 
+  dplyr::mutate(fam = strsplit(as.character(fam), ":")) %>% 
+  unnest(fam) %>% 
+  dplyr::filter(!is.na(fam)) %>% 
+  dplyr::filter(!(fam %in% c("?"))) %>% 
+  group_by(fam) %>% 
+  dplyr::count() %>% 
+  ungroup() %>% 
+  dplyr::arrange(n) %>% 
+  dplyr::mutate(fam=factor(fam, levels=fam)) %>% 
+  ggplot(aes(x = fam, y = n))+
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  theme_classic() +
+  scale_y_continuous( expand = c(0, 0)) +
+  labs( y = xlab, x = "" )
+} 
+
+
+```
+
+```{r input data}
+P60vP7_zic = read_tsv("../results/DiffExp_ZicChIP/ZicChIPDA_data.tsv")
+
+workflow = readPNG('../figures/homer_woorkflow.png')
+
+homer_results_P7 = read_tsv("../results/homer_results/P60vP7_DOWN/homer_results.tsv")
+homer_results_P60 = read_tsv("../results/homer_results/P60vP7_UP/homer_results.tsv")
+homer_results_static = read_tsv("../results/homer_results/P60vP7_NS/homer_results.tsv")
+
+atoh1_zic_overlap_p7 = read_tsv("../results/mergedPeaks/zic_atoh1_p7.bed", col_names = F) 
+atoh1_zic_overlap_p60 = read_tsv("../results/mergedPeaks/zic_atoh1_p60.bed", col_names = F) 
+atoh1_zic_overlap_static = read_tsv("../results/mergedPeaks/zic_atoh1_static.bed", col_names = F) 
+
+atoh_peaks =  read_tsv("../results/mergedPeaks/atoh1.bed", col_names = F)
+
+P60vP7_zic_overlap = read_tsv("../results/peak_gene/zic_atoh_overlap.txt")
+
+```
+
+
+```{r panel a}
+a = rasterGrob(workflow, interpolate = T)
+
+```
+![](../figures/homer_woorkflow.png)
+
+
+
+
+
+
+```{r panel b, fig.width=12, fig.height=4}
+ b =  bind_rows(
+    list(
+    #   # static motifs that are transcriptionally enriched
+    # static = homer_results_static %>%
+    # dplyr::filter(`q-value (Benjamini)` < 0.05) %>%
+    # dplyr::filter(padj < 0.05 ) %>% 
+    # dplyr::filter(abs(log2FoldChange) <= 1 ) %>% 
+    # dplyr::filter(name != "Unknown-ESC-element") %>%
+    # dplyr::mutate(label = paste0(name, "(", SYMBOL, ")")),
+      # p60 motifs that are transcriptionally enriched
+    p60 = homer_results_P60 %>%
+    dplyr::filter(`q-value (Benjamini)` < 0.05) %>%
+    dplyr::filter(padj < 0.05 ) %>% 
+    dplyr::filter(log2FoldChange >= 1 ) %>% 
+    dplyr::filter(name != "Unknown-ESC-element") %>%
+    dplyr::mutate(label = ifelse(str_to_lower(name) != str_to_lower(SYMBOL), paste0(name, "(", SYMBOL, ")"), name)),
+    # p7 motifs that are transcriptionally enriched
+    p7 = homer_results_P7 %>%
+    dplyr::filter(`q-value (Benjamini)` < 0.05) %>%
+    dplyr::filter(padj < 0.05 ) %>% 
+    dplyr::filter(log2FoldChange <= -1 ) %>% 
+    dplyr::filter(name != "Unknown-ESC-element") %>%
+       dplyr::mutate(label = ifelse(str_to_lower(name) != str_to_lower(SYMBOL), paste0(name, "(", SYMBOL, ")"), name))), 
+    .id = "id")  %>% 
+    dplyr::mutate(id = factor(id, levels = c("p7", "static", "p60"), labels = c('P7 Zic Peaks','Static Zic Peaks','P60 Zic peaks' ))) %>% 
+    dplyr::arrange(desc(id), `q-value (Benjamini)`) %>% 
+    dplyr::mutate(label_f = factor(label, unique(label))) %>% 
+    dplyr::filter(baseMean >= 100) %>% 
+    ggplot(aes(y = log2FoldChange, x = label_f, fill = `q-value (Benjamini)`)) +
+    geom_bar(stat = "identity") +
+    geom_hline(yintercept = 0,color = "grey",linetype = "dashed") +
+    #coord_flip() +
+    labs(x = "TF (mapped gene)", fill = "Motif Enrichment\n q-value") +
+    scale_y_continuous(limits = c(-11,5), expand = c(0, 0))+
+    facet_grid(.~id, scales = "free_x", space = "free_x")+
+    theme_classic() +
+    theme( axis.line.y = element_blank(),
+          axis.text.x = element_text(angle = 45, hjust = 1, size =12),
+          legend.position = "none") +
+    ylab(bquote("P60/P7" ~ log[2] ~ "Fold Enrichment"))
+
+  
+b
+```
+
+
+
+
+
+
+
+
+```{r panel d, fig.height=3, fig.width=3}
+# separating peak sets 
+zic_p7_overlap = atoh1_zic_overlap_p7 %>% 
+  dplyr::select(X1, X2, X3) %>% 
+  distinct()
+atoh1_p7_overlap = atoh1_zic_overlap_p7 %>% 
+  dplyr::select(X4, X5, X6) %>% 
+  distinct()
+
+zic_p60_overlap = atoh1_zic_overlap_p60 %>% 
+  dplyr::select(X1, X2, X3) %>% 
+  distinct()
+atoh1_p60_overlap = atoh1_zic_overlap_p60 %>% 
+  dplyr::select(X4, X5, X6) %>% 
+  distinct()
+
+
+zic_static_overlap = atoh1_zic_overlap_static %>% 
+  dplyr::select(X1, X2, X3) %>% 
+  distinct()
+atoh1_static_overlap = atoh1_zic_overlap_static %>% 
+  dplyr::select(X4, X5, X6) %>% 
+  distinct()
+
+
+#### How many atoh1 peaks overlap with the zic peaks?
+
+d1 = data.frame(group = c("P7", "P60", "Static"),
+                       count = c(nrow(atoh1_p7_overlap),nrow(atoh1_p60_overlap), nrow(atoh1_static_overlap) )/ nrow(atoh_peaks)) %>% 
+  add_row(group = "No overlap", count = 1 - sum(c(nrow(atoh1_p7_overlap),nrow(atoh1_p60_overlap), nrow(atoh1_static_overlap) )/ nrow(atoh_peaks))) %>% 
+  dplyr::mutate(col = "Atoh1 Peak") %>% 
+  ggplot(aes(x = col, y = count, fill = group)) +
+  geom_col() +
+  scale_fill_manual(limits = c("P7", "P60", "Static", "No Overlap"), labels = c("P7", "P60", "Static", "No \nOverlap"),values = c("blue", "red", "black", "grey")) +
+  theme_classic() +
+  labs(x = "", y = "% Overlap0", fill = "Zic Peak") 
+d1
+```
+
+```{r, fig.height=4, fig.width=3}
+# What proportion of the Zic peaks overlap with the atoh1 pwaks
+# create data frame
+mat  = data.frame(overlap = c(nrow(zic_p7_overlap),nrow(zic_p60_overlap), nrow(zic_static_overlap) ),
+                  npeaks = c(sum(P60vP7_zic$zic_sig == "DOWN"), sum(P60vP7_zic$zic_sig == "UP"), sum(P60vP7_zic$zic_sig == "N.S."))) %>%
+  dplyr::mutate( non_overlap = npeaks - overlap) %>% 
+  dplyr::select(-npeaks)
+
+row.names(mat) =  c("P7", "P60", "Static")
+
+# compute stats
+p7vp60  = prop.test(as.matrix(mat)[1:2,])
+p7vstatic  = prop.test(as.matrix(mat)[c(1,3),])
+p60vstatic  = prop.test(as.matrix(mat)[c(2,3),])
+
+#plot
+d2 = mat %>% 
+  dplyr::mutate(group = rownames(.),
+                 group = fct_relevel(group, c("P7", "Static", "P60"))) %>% 
+  pivot_longer(cols = c("overlap", "non_overlap")) %>% 
+  ggplot(aes(x = group, y = value, fill = name)) +
+  geom_col(position = "fill") +
+  labs(x = "Zic Peak", y = "% Overlap", fill = "Overlap\n w/Atoh1") +
+  scale_fill_manual(limits = c("non_overlap", "overlap"), labels = c("No", "Yes"), values = c("black", "grey")) +
+  geom_signif(tip_length = .000001, annotations = c("***", "***"), xmin = c(0.8, 0.8), xmax = c(2.2,3.2), y_position = c(1.01, 1.1) , color = "black") +
+  theme_classic() +
+  scale_y_continuous(expand = expansion(add = c(0, .2)), limits = c(0,1), oob = rescale_none)+
+  theme(legend.position = "bottom")
+d2
+```
+
+```{r, fig.width= 4, fig.height=4}
+
+cont = P60vP7_zic_overlap %>% 
+  dplyr::filter(Overlap %in% c(TRUE)) %>% 
+  dplyr::filter(zic_sig %in% c("UP", "DOWN", "N.S.")) %>% 
+  dplyr::select(zic_sig, group)
+
+tab = table(cont$zic_sig, cont$group)
+
+
+sig_all = chisq_test(tab)
+sig_p7vstatic = chisq_test(tab[c("DOWN", "N.S."),])
+sig_p7vp60 = chisq_test(tab[c("DOWN", "UP"),])
+sig_staticvp60 = chisq_test(tab[c("N.S.", "UP"),])
+
+d3 = P60vP7_zic_overlap %>% 
+  dplyr::filter(Overlap %in% c(TRUE)) %>% 
+  dplyr::filter(zic_sig %in% c("UP", "DOWN", "N.S.")) %>% 
+  dplyr::count(zic_sig, group) %>% 
+  ggplot(aes( x = zic_sig, y = n,  fill = group)) +
+  geom_bar(stat = "identity", position = "fill") +
+  labs(y = "% Peaks", x = "Overlap with Atoh1", fill = "Genomic Region")+
+  scale_x_discrete(limits = c("DOWN", "N.S.", "UP"), labels = c("P7", "Static", "P60"))+
+  theme_classic() +
+  ggsignif::geom_signif(tip_length = .0000001, annotations = sig_all$p.signif, xmin = c(0.8), xmax = c(3.2), y_position = c(1.1) , color = "black")
+d3
+```
+
+
+```{r panel e, fig.width=12, fig.height=3}
+ # set scheme
+scheme <- getScheme(name=getOption("Gviz.scheme"))
+scheme$GdObject$col.axis = "white"
+scheme$GdObject$background.title = "black"
+scheme$GdObject$fontcolor = "black"
+scheme$GdObject$rotation.title = 90
+scheme$GeneRegionTrack$transcriptAnnotation = "symbol"
+scheme$GeneRegionTrack$col = "black"
+scheme$GeneRegionTrack$fill = "black"
+scheme$GeneRegionTrack$collapseTranscripts = FALSE
+scheme$DataTrack$fill.histogram = "darkblue"
+scheme$DataTrack$col.histogram = "darkblue"
+scheme$GdObject$col.border.title = "transparent"
+
+addScheme(scheme, "myScheme")
+options(Gviz.scheme="myScheme")
+
+# formatting data
+genomeAxis <- GenomeAxisTrack(name="MyAxis") 
+customFromTxDb <- GeneRegionTrack(TxDb.Mmusculus.UCSC.mm10.knownGene)
+
+p7_zic_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/zic_chip/SRR1557091/SRR1557091_norm.bw", as="GRanges"), 
+                   genome = "mm10",name = "Zic P7", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+p60_zic_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/zic_chip/SRR1557093/SRR1557093_norm.bw", as="GRanges"), 
+                   genome = "mm10",name = "Zic P60", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+atoh1_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/atoh1_chip/SRR059286/SRR059286_norm.bw", as="GRanges"), 
+                   genome = "mm10",name = "Atoh1", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+
+atoh1_zic_overlap = bind_rows(atoh1_zic_overlap_p7, atoh1_zic_overlap_static)
+peaks = atoh1_zic_overlap %>% 
+  dplyr::select(X1, X2, X3) %>% 
+  distinct()
+atoh1_zic_track = AnnotationTrack(GRanges(seqnames = peaks$X1, ranges = IRanges(start = peaks$X2, end = peaks$X3)),
+                                  genome = "mm10", name = "Atoh1", col.title = "white", col.border.title = "black",fill = "black")
+
+
+
+tracks = list(atoh1_zic_track,
+              p7_zic_bw, 
+              p60_zic_bw, 
+              atoh1_bw)
+
+
+png("../figures/fig1_track1.png", units = "in", height = 3, width = 12, res = 300)
+plot_track("Mycn", tracks, 75000, 10000, ylim = c(0,2)) # looks kinda good
+dev.off()
+
+png("../figures/fig1_track2.png", units = "in", height = 3, width = 12, res = 300)
+plot_track("Ccnd2", tracks, 50000, 50000, ylim = c(0,1)) ## this is the one
+dev.off()
+
+e2 = rasterGrob(readPNG("../figures/fig1_track2.png"))
+e1 = rasterGrob(readPNG("../figures/fig1_track1.png"))
+
+
+
+# plot_track("Atoh1", tracks, 100000, 100000)
+# plot_track("Cbln3", tracks, 100000, 100000)
+# plot_track("Cntn1", tracks, 100000, 100000)
+# plot_track("Cxcr4", tracks, 100000, 100000)
+# plot_track("Erbb4", tracks, 100000, 100000)
+# plot_track("Foxp2", tracks, 100000, 100000)
+# plot_track("Gas1", tracks, 100000, 100000)
+# plot_track("Gm2a", tracks, 100000, 100000)
+# plot_track("Adgrg1", tracks, 100000, 100000) #Gpr56
+# plot_track("Itgb1", tracks, 100000, 100000)
+# plot_track("Neurod1", tracks, 100000, 100000)
+# plot_track("Nfia", tracks, 100000, 100000)
+# plot_track("Ntf3", tracks, 100000, 100000)
+# plot_track("Pax6", tracks, 100000, 100000)
+# plot_track("Plxnb2", tracks, 100000, 100000)
+# plot_track("Sema6a", tracks, 100000, 100000)
+# plot_track("Unc5c", tracks, 100000, 100000)
+# plot_track("Zbtb18", tracks, 100000, 100000) #zfp238
+# plot_track("Zic4", tracks, 100000, 100000)
+
+
+
+```
+![](../figures/fig1_track1.png)
+
+![](../figures/fig1_track2.png)
+
+
+```{r figure 1, fig.width=15, fig.height=12}
+ab = plot_grid(a, b, ncol = 1, labels = c("A", "B"), rel_heights = c(1,2))
+
+#c = plot_grid(c1, c2, ncol =1, align = "v", rel_heights = c(6,4))
+
+cd = plot_grid(d1, d2, labels = c("C", "D"), ncol=2, rel_widths = c(1,1))
+
+cde = plot_grid(cd, d3, ncol =1, labels = c("", "E"), scale = c(.9,1))
+
+fig1 = plot_grid(plot_grid(ab,cde,  rel_widths = c(.70,.30)), 
+                 plot_grid( e1, e2, labels = c( "F", ""), nrow = 1),
+                 rel_heights = c(3, 1),
+                 nrow = 2)
+
+png("../figures/figure1.png", height = 12, width = 15, res = 300, units = "in")
+fig1
+dev.off()
+```
+Figure 1. Distinct motifs enriched in sequences underlying  P7 enriched and P60 enriched Zic peaks. A) Schematic of motif enrichment workflow where developmentally enriched peaks are used as a search space for motifs using homer and then filtered by mapped gene expression of the proteins. B) ) TFs whose motifs are enriched under the Zic peaks at P7 and P60. C) D) E) percent overlap pf Atoh1 ChIP with Zic ChIP sites enriched at P7, P60, and static. F) Example tracks of Zic P7, Zic P60, and Atoh1 ChIP peaks. 
+
+
+
+```{r supplement, fig,height = 10, fig.width=8}
+sa1 = P60vP7_zic %>% 
+  dplyr::mutate(size = End - Start) %>% 
+  ggplot(aes(x = size) )+ 
+  geom_histogram(fill = "white", color = "black", bins = 50) +
+  theme_classic() +
+  labs(x = "Size of Zic Peaks")
+
+
+sa2 = P60vP7_zic %>% 
+  ggplot(aes(x = p7_mean)) +
+  geom_histogram(fill = "white", color = "black", bins = 1000) +
+  facet_zoom(xlim = c(0, 1000)) +
+  theme_classic() +
+  labs(x = "Mean signal of Peaks at P7")
+
+sa3 =P60vP7_zic %>% 
+  ggplot(aes(x = p60_mean)) +
+  geom_histogram(fill = "white", color = "black", bins = 1000) +
+  facet_zoom(xlim = c(0, 1000)) +
+  theme_classic() +
+  labs(x = "Mean signal of Peaks at P60")
+
+
+nums = table(P60vP7_zic$zic_sig)
+sa4 = P60vP7_zic %>% 
+  dplyr::filter(zic_sig != "filtered") %>% 
+  ggplot(aes(x = log10(baseMean), y = log2FoldChange, color = zic_sig))+
+  geom_point(size = 0.5, alpha = 0.5) +
+  scale_color_manual(values= c("blue", "black", "red")) +
+  geom_text(x = 3.5, y = 5, label = paste0("Increased Zic Binding\n n = ",nums["UP"] ), color = "red")+
+  geom_text(x = 3.5, y = -6, label = paste0("Decreased Zic Binding\n n = ",nums["DOWN"] ), color = "blue")+
+  theme_classic() + 
+  xlim(c(.7, 4.7))+
+  labs( x = "log10(Avg Zic ChIP  Signal)", y = "Log2FC")+
+    theme(legend.position = "none") 
+
+
+low_exp = 0
+sa5 = P60vP7_zic %>% 
+  dplyr::filter(p7_mean <= low_exp | p60_mean <= low_exp) %>% 
+  ggplot(aes(x = zic_sig), width = 5)+
+  geom_bar(fill = "white", color = "black") +
+  theme_classic() +
+  scale_x_discrete(limits = c("DOWN", "filtered", "N.S.", "UP"), labels = c("Complete\nLoss", "Filtered", "N.S.", "Complete\nGain"))+
+  labs(y = "# Peaks Mean \nSignal = 0 at P7 or P60", x ="Zic Differential Signal")
+
+
+sa6 = plot_fam(homer_results_P7, xlab = "# of TF Families enriched at P7", regulation = "DOWN", baseMeanCutoff = 100)
+sa7 = plot_fam(homer_results_P60,  xlab = "# of TF Families enriched at P60", regulation = "UP", baseMeanCutoff = 100)
+
+
+s1 = plot_grid(plot_grid(sa1, sa2, sa3, labels = c("A", "B", "C"), nrow = 1, rel_widths = c(1,2,2)),
+          plot_grid(sa4, sa5, labels = c("D", "E"), nrow=1, rel_widths = c(2,1)),
+          plot_grid(sa6, sa7, labels = c("F", "G"), nrow= 1),
+          nrow = 3
+)
+
+#png("../figures/supp_figure1.png", height = 7, width = 8, units = "in", res = 300)
+s1
+#dev.off()
+```
+
+A) Distribution of Zic peak size. Average ChIP signal of peaks at B) P7 and C) P60. D) MA plot of Zic-ChIP peaks P7 v P60. E) Number of peaks whose mean ChIP signal is 0 at P7 or P60  F,G) The number of TF families enriched at P7 and P60 
+
+
