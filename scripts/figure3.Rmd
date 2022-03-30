@@ -188,6 +188,17 @@ late_homer = read_tsv("../results/homer_results/late/homer_results.tsv")
 early_all_homer = read_tsv("../results/homer_results/P60_peaks_DOWNGenes/homer_results.tsv")
 late_all_homer = read_tsv("../results/homer_results/P60_peaks_UpGenes//homer_results.tsv")
 
+earlyVlate_act_hom = read_tsv("../results/peak_gene/rrho/early_late_activating_homer.txt")
+early_actVrep_hom = read_tsv("../results/peak_gene/rrho/early_activating_repressive_homer.txt")
+earlyVlate_rep_hom = read_tsv("../results/peak_gene/rrho/early_late_repressive_homer.txt")
+late_actvrep_hom = read_tsv("../results/peak_gene/rrho/late_activating_repressive_homer.txt")
+actvrep_hom = read_tsv("../results/peak_gene/rrho/activating_repressive_homer.txt")
+earlyvlate_hom = read_tsv("../results/peak_gene/rrho/early_late_homer.txt")
+early_allVloop_hom = read_tsv("../results/peak_gene/rrho/early_allvloop_homer.txt")
+late_allVloop_hom = read_tsv("../results/peak_gene/rrho/late_allvloop_homer.txt")
+earlyvlate_all_hom = read_tsv("../results/peak_gene/rrho/earlyvlate_all_homer.txt")
+
+
 activ_bart = read_tsv("../results/peak_gene/activating/bart_results.txt")
 repr_bart = read_tsv("../results/peak_gene/repressive/bart_results.txt")
 early_activ_bart = read_tsv("../results/peak_gene/early_activating/bart_results.txt")
@@ -280,17 +291,42 @@ plot_bart_homer("late_all", late_all_bart, late_all_homer, axis_text_size)
 Supplemental Figure . Mouse in-vivo ChIP overlap enrichement (BART) and motif enrichement (HOMER) of Zic ChIP peaks. A) Overlap in TF ChIP profiles in each algorithm. TF enrichement was calculated by timepoint and gene regulation in the following categories B) Early Activaitng, C) Late Activating D) Early Repressive E) Late Repressive F) Early, E) Late.  *Denotes predicted TFs that are common between the ChIP overlap enrichement and motf enrichment. Color of TFs on y-axis indicate whether that TF was in both datasets (blue) ot not(black).
 
 
-```{r distinct, fig.height=4, fig.width=4}
+```{r distinct, fig.height=4, fig.width=8}
 
 a1 = plot_distinct(earlyVlate_act, "early_activating", "late_activating", "Distinct Early\nActivating", "Distinct Late\nActivating" )
 b1 = plot_distinct(earlyVlate_rep, "early_repressive", "late_repressive", "Distinct Early\nRepressive", "Distinct Late\nRepressive" )
 c1 = plot_distinct(earlyvlate, "early", "late", "Distinct Early", "Distinct Late" )
 d1 = plot_distinct(earlyvlate_all, "early_all", "late_all", "Distinct Early", "Distinct Late" )
 
-a1
-b1
-c1
-d1
+sa1 = plot_distinct(early_actVrep, "early_activating", "early_repressive", "Distinct \nActivating", "Distinct \nRepressive" )
+sa2 = plot_distinct(late_actvrep, "late_activating", "late_repressive", "Distinct \nActivating", "Distinct \nRepressive" )
+sa3 = plot_distinct(actvrep, "activating", "repressive", "Distinct \nActivating", "Distinct \nRepressive" )
+sa4 = plot_distinct(early_allVloop, "early_all", "early", "Distinct \nAll Zic P7", "Distinct \nLooped Zic P7")
+sa5 = plot_distinct(late_allVloop, "late_all", "late", "Distinct \nAll Zic P60", "Distinct \nLooped Zic P60")
+
+
+ah1 = plot_distinct(earlyVlate_act_hom, "early_activating", "late_activating", "Distinct Early\nActivating", "Distinct Late\nActivating" )
+bh1 = plot_distinct(earlyVlate_rep_hom, "early_repressive", "late_repressive", "Distinct Early\nRepressive", "Distinct Late\nRepressive" )
+ch1 = plot_distinct(earlyvlate_hom, "early", "late", "Distinct Early", "Distinct Late" )
+dh1 = plot_distinct(earlyvlate_all_hom, "early_all", "late_all", "Distinct Early", "Distinct Late" )
+
+
+sah1 = plot_distinct(early_actVrep_hom, "early_activating", "early_repressive", "Distinct \nActivating", "Distinct \nRepressive" )
+sah2 = plot_distinct(late_actvrep_hom, "late_activating", "late_repressive", "Distinct \nActivating", "Distinct \nRepressive" )
+sah3 = plot_distinct(actvrep_hom, "activating", "repressive", "Distinct \nActivating", "Distinct \nRepressive" )
+sah4 = plot_distinct(early_allVloop_hom, "early_all", "early", "Distinct \nAll Zic P7", "Distinct \nLooped Zic P7")
+sah5 = plot_distinct(late_allVloop_hom, "late_all", "late", "Distinct \nAll Zic P60", "Distinct \nLooped Zic P60")
+
+
+plot_grid(a1, ah1, labels = c("Bart", "Homer"), hjust = -2)
+plot_grid(b1, bh1, labels = c("Bart", "Homer"), hjust = -2)
+plot_grid(c1, ch1, labels = c("Bart", "Homer"), hjust = -2)
+plot_grid(d1, dh1, labels = c("Bart", "Homer")), hjust = -2
+plot_grid(sa1, sah1, labels = c("Bart", "Homer"), hjust = -2)
+plot_grid(sa2, sah2, labels = c("Bart", "Homer"), hjust = -2)
+plot_grid(sa3, sah3, labels = c("Bart", "Homer"), hjust = -2)
+plot_grid(sa4, sah4, labels = c("Bart", "Homer"), hjust = -2)
+plot_grid(sa5, sah5, labels = c("Bart", "Homer"), hjust = -2)
 
 
 ```
@@ -303,6 +339,9 @@ c2 = plot_distinct_gene(earlyvlate, "early", "late", gene_expr_filt )
 
 d2 = plot_distinct_gene(earlyvlate_all, "early_all", "late_all", gene_expr_filt )
 
+plot_distinct_gene(earlyvlate_hom, "early", "late", gene_expr_filt )
+plot_distinct_gene(earlyvlate_all_hom, "early_all", "late_all", gene_expr_filt )
+
 a2
 b2
 c2
@@ -314,6 +353,9 @@ a3 = plot_pathways(earlyVlate_act, "early_activating", "late_activating", gene_e
 b3 = plot_pathways(earlyVlate_rep, "early_repressive", "late_repressive", gene_expr_filt )
 c3 = plot_pathways(earlyvlate, "early", "late", gene_expr_filt )
 d3 = plot_pathways(earlyvlate_all, "early_all", "late_all", gene_expr_filt )
+
+plot_pathways(earlyvlate_hom, "early", "late", gene_expr_filt )
+plot_pathways(earlyvlate_all_hom, "early_all", "late_all", gene_expr_filt )
 
 a3
 b3

@@ -27,6 +27,7 @@ homer_data <- homer_files %>%
                                       
                                       ))
 
+
 # Functions ---------------------------------------------------------------
 
 rrho_tf <- function(cond1, cond2, homer_data1, homer_data2, lims = NULL){
@@ -160,12 +161,22 @@ runRRHO <- function(cond1, cond2, lims = NULL){
   pmap = plotRRHO(cond1, cond2, obj, lims)
   
   #making final table
-  table = full_join(data1, data2, by = c("Motif Name", "SYMBOL","q-value (Benjamini)", "p7_mean", "p60_mean", "baseMean", "log2FoldChange", "lfcSE", "stat", "pvalue", "padj", "gene_sig") ) %>% 
-    left_join(distinct_enriched) %>%
+  table = homer_data %>%
+    dplyr::filter(filename %in% c(cond1, cond2)) %>% 
+    dplyr::select("Motif Name", SYMBOL, name, filename, "q-value (Benjamini)") %>% 
+    distinct() %>% 
+    group_by(`Motif Name`, filename) %>% 
+    slice_max(`q-value (Benjamini)`) %>% 
+    ungroup() %>% 
+    pivot_wider(id_cols = c(`Motif Name`, SYMBOL, name), names_from = filename, values_from = "q-value (Benjamini)") %>% 
+    distinct() %>% 
+    left_join(homer_data %>% dplyr::select(SYMBOL, baseMean, p60_mean, p7_mean, log2FoldChange, gene_sig) %>% distinct()) %>% 
+    left_join(distinct_enriched) %>% 
     dplyr::mutate(enriched_in = case_when(is.na(enriched_in)  ~ "Similar Enrichment",
                                           !is.na(enriched_in) ~ enriched_in)) %>% 
-    dplyr::select("Motif Name","SYMBOL", "q-value (Benjamini)","baseMean",  "p60_mean", "p7_mean", "log2FoldChange","gene_sig", "enriched_in") 
-  
+    dplyr::mutate(SYMBOL = str_to_title(SYMBOL)) %>% 
+    dplyr::rename(TF = name)
+
   list(distinct_enriched = distinct_enriched, pmap = pmap, table = table)
   
   

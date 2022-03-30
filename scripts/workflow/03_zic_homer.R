@@ -38,7 +38,7 @@ clean_name <- function(df, gene_exp){
   
   # wrangle
   gene_exp = gene_exp %>% 
-    mutate(SYMBOL = tolower(SYMBOL))
+    dplyr::mutate(SYMBOL = tolower(SYMBOL))
   
   # extracting name and family from the homer output
   name_fam= sub("\\/.*", "", df$`Motif Name`)
@@ -175,8 +175,8 @@ names(homerResultsClean) =  gsub(".bed", "", peakFilesOfInterest)
 
 # Write data --------------------------------------------------------------
 
-# 
-# write_tsv(as.data.frame(homerResultsClean[[1]]),paste0("../../results/homer_results/", names(homerResultsClean)[1], "/homer_results.tsv"))
-# write_tsv(as.data.frame(homerResultsClean[[2]]),paste0("../../results/homer_results/", names(homerResultsClean)[2], "/homer_results.tsv"))
-# write_tsv(as.data.frame(homerResultsClean[[3]]),paste0("../../results/homer_results/", names(homerResultsClean)[3], "/homer_results.tsv"))
+
+write_tsv(as.data.frame(homerResultsClean[[1]]),paste0("../../results/homer_results/", names(homerResultsClean)[1], "/homer_results.tsv"))
+write_tsv(as.data.frame(homerResultsClean[[2]]),paste0("../../results/homer_results/", names(homerResultsClean)[2], "/homer_results.tsv"))
+write_tsv(as.data.frame(homerResultsClean[[3]]),paste0("../../results/homer_results/", names(homerResultsClean)[3], "/homer_results.tsv"))
 
