@@ -30,10 +30,14 @@ EP_loops = bind_rows(
   ),
   .id = "id"
 ) %>% 
-  dplyr::arrange(loop_id)
+  dplyr::arrange(loop_id) %>% 
+  # making the anchor bins 10KB 
+  dplyr::mutate( mid = end - start/2,
+                 new_start = mid - 5000,
+                 new_end = mid + 5000)
 
 EP_loops %>% 
-  dplyr::select(chr, start, end) %>% 
+  dplyr::select(chr, new_start, new_end) %>% 
   write_tsv("../../sequencing_data/Reddy/P4_EP_loops.bed")
 
 

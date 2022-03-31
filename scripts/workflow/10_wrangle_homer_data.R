@@ -168,6 +168,7 @@ runRRHO <- function(cond1, cond2, lims = NULL){
     group_by(`Motif Name`, filename) %>% 
     slice_max(`q-value (Benjamini)`) %>% 
     ungroup() %>% 
+    
     pivot_wider(id_cols = c(`Motif Name`, SYMBOL, name), names_from = filename, values_from = "q-value (Benjamini)") %>% 
     distinct() %>% 
     left_join(homer_data %>% dplyr::select(SYMBOL, baseMean, p60_mean, p7_mean, log2FoldChange, gene_sig) %>% distinct()) %>% 

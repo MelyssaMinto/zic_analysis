@@ -190,6 +190,8 @@ k27ac_data_young = k27ac_loop_map_young %>%
   left_join(EP_loops %>% dplyr::select(loop_id, anchor))
 
 # combining all data -----------------------------------------------------
+
+# > adult data ------------------------------------------------------------
 mapped_data_adult = annot %>% 
   # adding loop maps
   full_join(zic_data_adult, by = "loop_id",na_matches = "never") %>% 
@@ -210,6 +212,7 @@ mapped_data_adult = annot %>%
   ungroup()
 
 
+# > young data ------------------------------------------------------------
 mapped_data_young = EP_loops %>% 
   # adding loop maps
   full_join(zic_data_young, by = "loop_id",na_matches = "never") %>% 
@@ -227,22 +230,41 @@ mapped_data_young = EP_loops %>%
   #formatting
   dplyr::select(starts_with(c("loop","zic", "k27ac", "dnase", "gene", "p7", "p60"))) %>% 
   relocate(loop_id, zic_peak, k27ac_peak, dnase_peak, gene_name) %>% 
-  ungroup()
-  
+  ungroup() 
 
-mapped_data = bind_rows( list ( adult = mapped_data_adult, young = mapped_data_young), .id = "id")
 
-mapped_data_table_adult =  annot %>% 
-  # adding loop maps
-  left_join(zic_data_adult, by = "loop_id",na_matches = "never") %>% 
-  distinct() %>%
-  left_join(dnase_data_adult, by = "loop_id", na_matches = "never") %>% 
+
+# > all -------------------------------------------------------------------
+mapped_data = bind_rows( list ( adult = mapped_data_adult, young = mapped_data_young), .id = "id") %>% 
+  # removing peaks that are mapped in either the adult or young but not both
+  group_by(zic_peak) %>% 
+  add_count(zic_peak) %>% 
+  dplyr::mutate( id = case_when( n == 2 & sum(is.na(loop_id)) == 2 ~ "no_loop", TRUE ~ id) ) %>% 
   distinct() %>% 
-  left_join(k27ac_data_adult,by = "loop_id", na_matches = "never") %>% 
-  distinct() %>% 
-  # selecting peak identifier columns
+  dplyr::mutate( to_keep_zic = !(is.na(loop_id) & sum(is.na(loop_id)) < n())) %>% 
+  dplyr::select(-n) %>% 
+  ungroup() %>% 
+  group_by(dnase_peak) %>% 
+  add_count(dnase_peak) %>% 
+  dplyr::mutate( id = case_when( n == 2 & sum(is.na(loop_id)) == 2 ~ "no_loop", TRUE ~ id) ) %>% 
+  dplyr::mutate(to_keep_dnase = !(is.na(loop_id) & !to_keep_zic & sum(is.na(loop_id)) < n()))  %>% 
+  dplyr::select(-n) %>% 
+  ungroup() %>% 
+  group_by(k27ac_peak) %>% 
+  add_count(k27ac_peak) %>%
+  dplyr::mutate( id = case_when( n == 2 & sum(is.na(loop_id)) == 2 ~ "no_loop",  TRUE ~ id) ) %>% 
+  dplyr::mutate( to_keep = !(is.na(loop_id) & !to_keep_dnase & sum(is.na(loop_id)) < n())) %>% 
+  dplyr::select(-n) %>% 
+  ungroup() %>% 
+  # filtering out 
+  dplyr::filter(to_keep) %>% 
+  # unifying loopid 
+  dplyr::mutate(loop_id = ifelse(is.na(loop_id), "no_loop", paste0(id, "_", loop_id))) 
+
+mapped_data_table = mapped_data %>% 
   dplyr::select(loop_id, zic_peak, k27ac_peak, dnase_peak) %>% 
   distinct() %>% 
+  dplyr::filter(!(loop_id == "no loop")) %>% 
   group_by(loop_id) %>% 
   # collapses peaks by loop
   summarise(zic_peaks = glue_collapse(unique(zic_peak), sep = ", ", ),
@@ -250,47 +272,9 @@ mapped_data_table_adult =  annot %>%
             dnase_peaks = glue_collapse(unique(dnase_peak), sep = ", ")) %>% 
   ungroup() %>% 
   # adding loop to gene info
-  left_join(annot, by = "loop_id") %>% 
-  dplyr::select("loop_id", ends_with("peaks"), "gene_name") %>% 
-  # adding bulk RNA data
-  left_join(bulkRNA_DE_data %>% dplyr::rename(gene_name = SYMBOL, gene_baseMean = baseMean, gene_padj = padj, gene_lfc = log2FoldChange), by = "gene_name",  na_matches = "never") %>% 
-  distinct() %>%  
+  left_join(mapped_data %>% dplyr::select(loop_id, ends_with("mean"), starts_with("gene") ) %>% distinct(), by = "loop_id") %>% 
   #formatting
-  dplyr::select(starts_with(c("loop","zic", "k27ac", "dnase", "gene", "p7","60"))) %>% 
   relocate(loop_id, zic_peaks, k27ac_peaks, dnase_peaks, gene_name) 
-
-mapped_data_table_young = EP_loops %>% 
-  # adding loop maps
-  full_join(zic_data_young, by = "loop_id",na_matches = "never") %>% 
-  distinct() %>%
-  full_join(dnase_data_young, by = "loop_id", na_matches = "never") %>% 
-  distinct() %>% 
-  full_join(k27ac_data_young,by = "loop_id", na_matches = "never") %>% 
-  distinct() %>% 
-  # selecting peak identifier columns
-  dplyr::select(loop_id, zic_peak, k27ac_peak, dnase_peak) %>% 
-  distinct() %>% 
-  group_by(loop_id) %>% 
-  # collapses peaks by loop
-  summarise(zic_peaks = glue_collapse(unique(zic_peak), sep = ", ", ),
-            k27ac_peaks = glue_collapse(unique(k27ac_peak), sep = ", "),
-            dnase_peaks = glue_collapse(unique(dnase_peak), sep = ", ")) %>% 
-  ungroup() %>% 
-  # adding loop to gene info
-  left_join(annot, by = "loop_id") %>% 
-  dplyr::select("loop_id", ends_with("peaks"), "gene_name") %>% 
-  # adding bulk RNA data
-  left_join(bulkRNA_DE_data %>% dplyr::rename(gene_name = SYMBOL, gene_baseMean = baseMean, gene_padj = padj, gene_lfc = log2FoldChange), by = "gene_name",  na_matches = "never") %>% 
-  distinct() %>%  
-  #formatting
-  dplyr::select(starts_with(c("loop","zic", "k27ac", "dnase", "gene", "p7","60"))) %>% 
-  relocate(loop_id, zic_peaks, k27ac_peaks, dnase_peaks, gene_name) 
-
-mapped_data_table = bind_rows( list ( adult = mapped_data_table_adult, young = mapped_data_table_young), .id = "id") %>% 
-  dplyr::mutate(loop_id = paste0(id,"_" , loop_id))
-
-
-
 
 
 
@@ -305,18 +289,14 @@ output_peak_set("UP", "DOWN") %>% write_tsv("../../results/peak_gene/late_repres
 output_peak_set("DOWN", "DOWN") %>% write_tsv("../../results/peak_gene/early_activating/P7_peaks_DOWNGenes.bed", col_names = F)
 output_peak_set("DOWN", "UP") %>% write_tsv("../../results/peak_gene/early_repressive/P7_peaks_UpGenes.bed", col_names = F)
 
-bind_rows(output_peak_set("UP", "UP"),output_peak_set("DOWN", "DOWN") ) %>% 
+bind_rows(output_peak_set("UP", "UP"),output_peak_set("DOWN", "DOWN") ) %>%
   write_tsv("../../results/peak_gene/activating/activating.bed", col_names = F)
 
-bind_rows(output_peak_set("UP", "DOWN"),output_peak_set("DOWN", "UP") ) %>% 
+bind_rows(output_peak_set("UP", "DOWN"),output_peak_set("DOWN", "UP") ) %>%
   write_tsv("../../results/peak_gene/repressive/repressive.bed", col_names = F)
 
 output_peak_set("UP", c("UP", "DOWN")) %>% write_tsv("../../results/peak_gene/late/late.bed", col_names = F)
 
 output_peak_set("DOWN", c("UP", "DOWN")) %>% write_tsv("../../results/peak_gene/early/early.bed", col_names = F)
 
-# mapped_data %>% 
-#   dplyr::filter(!is.na(gene_name) & is.na(zic_peak) & !is.na(loop_id)) %>% 
-#   dplyr::select(gene_name) %>% 
-#   distinct()
 

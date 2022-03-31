@@ -38,6 +38,10 @@ gene_expr = read_tsv("../results/DiffExp_RNA/normalized_counts.tsv")
 # > Source: Yamada et al. 2019 https://www.nature.com/articles/s41586-019-1190-7
 plac_file <- read_delim("../sequencing_data/Yamada/combined_MAPS_peaks.txt", 
                         delim = "\t", escape_double = FALSE, col_names = FALSE, trim_ws = TRUE)
+# > Source: Reddy et al. 2021 https://www.nature.com/articles/s41467-021-25846-3
+ep_file <-read_delim("../sequencing_data/Reddy/E-P-Gene_map.txt",
+                     delim = "\t", escape_double = FALSE, col_names = TRUE, trim_ws = TRUE) %>% 
+          dplyr::select(starts_with(c("enhancer", "promoter")))
 ```
 
 ```{r define functions}
@@ -106,11 +110,11 @@ sa1 = mapped_data %>%
   distinct() %>% 
   group_by(in_anchor) %>% 
   dplyr::count(gene_sig) %>% 
-  ggplot(aes(x = gene_sig, y = n, label = n))+
+  ggplot(aes(x = gene_sig, y = n, label = n, fill =  in_anchor))+
   geom_col() +
-  geom_text(vjust = 0, fontface = "bold", color = "black", size = 3)+
-  facet_wrap(~in_anchor, labeller = labeller(in_anchor = c("FALSE" = "Not in Anchor", "TRUE" = "With in Anchor"))) +
-  labs(y = "# genes \nmapped to anchors", x = "Gene Regulation") +
+  geom_text(vjust = 2, fontface = "bold", color = "black", size = 3)+
+  #facet_wrap(~in_anchor, labeller = labeller(in_anchor = c("FALSE" = "Not in Anchor", "TRUE" = "With in Anchor"))) +
+  labs(y = "# genes", x = "Gene Regulation") +
   theme_bw()+
   theme(plot.title = element_text(face = "bold"))
   
@@ -123,14 +127,14 @@ sb1 = mapped_data %>%
   dplyr::filter(!grepl("chr[X|Y]", zic_peak)) %>% 
   dplyr::mutate(in_anchor = ifelse(is.na(loop_id), FALSE, TRUE)) %>% 
   dplyr::select(-loop_id) %>% 
-  distinct() %>% 
+  distinct() %>% View()
   group_by(in_anchor) %>% 
   dplyr::count(zic_sig) %>% 
-  ggplot(aes(x = zic_sig, y = n, label = n))+
+  ggplot(aes(x = zic_sig, y = n, label = n, fill =  in_anchor))+
   geom_col() +
-  geom_text(vjust = 0, fontface = "bold", color = "black", size = 3)+
-  facet_wrap(~in_anchor, labeller = labeller(in_anchor = c("FALSE" = "Not in Anchor", "TRUE" = "With in Anchor"))) +
-  labs(y = "# Zic peaks \nmapped to anchors", x = "Zic Regulation") +
+  geom_text(vjust = 2, fontface = "bold", color = "black", size = 3)+
+  #facet_wrap(~in_anchor, labeller = labeller(in_anchor = c("FALSE" = "Not in Anchor", "TRUE" = "With in Anchor"))) +
+  labs(y = "# Zic peaks", x = "Zic Regulation") +
   theme_bw()+
   theme(plot.title = element_text(face = "bold"))
 
@@ -145,11 +149,11 @@ sc1 = mapped_data %>%
   distinct() %>% 
   group_by(in_anchor) %>% 
   dplyr::count(dnase_sig) %>% 
-  ggplot(aes(x = dnase_sig, y = n, label = n))+
+  ggplot(aes(x = dnase_sig, y = n, label = n, fill =  in_anchor))+
   geom_col() +
-  geom_text(vjust = 0, fontface = "bold", color = "black", size = 3)+
-  facet_wrap(~in_anchor, labeller = labeller(in_anchor = c("FALSE" = "Not in Anchor", "TRUE" = "With in Anchor"))) +
-  labs(y = "# DHS peaks \nmapped to anchors", x = "DNase Regulation") +
+  geom_text(vjust = 2, fontface = "bold", color = "black", size = 3)+
+  #facet_wrap(~in_anchor, labeller = labeller(in_anchor = c("FALSE" = "Not in Anchor", "TRUE" = "With in Anchor"))) +
+  labs(y = "# DHS peaks", x = "DNase Regulation") +
   theme_bw()+
   theme(plot.title = element_text(face = "bold"))
 
@@ -164,11 +168,11 @@ sd1 = mapped_data %>%
   distinct() %>% 
   group_by(in_anchor) %>% 
   dplyr::count(k27ac_sig) %>% 
-  ggplot(aes(x = k27ac_sig, y = n, label = n))+
+  ggplot(aes(x = k27ac_sig, y = n, label = n, fill =  in_anchor))+
   geom_col() +
-  geom_text(vjust = 0, fontface = "bold", color = "black", size = 3)+
-  facet_wrap(~in_anchor, labeller = labeller(in_anchor = c("FALSE" = "Not in Anchor", "TRUE" = "With in Anchor"))) +
-  labs(y = "# H3K27ac peaks \nmapped to anchors", x = "H3K27ac Regulation") +
+  geom_text(vjust = 2, fontface = "bold", color = "black", size = 3)+
+  #facet_wrap(~in_anchor, labeller = labeller(in_anchor = c("FALSE" = "Not in Anchor", "TRUE" = "With in Anchor"))) +
+  labs(y = "# H3K27ac peaks", x = "H3K27ac Regulation") +
   theme_bw() +
   theme(plot.title = element_text(face = "bold"))
 
