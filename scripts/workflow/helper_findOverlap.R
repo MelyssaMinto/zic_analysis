@@ -37,8 +37,12 @@ EP_loops = bind_rows(
                  new_end = mid + 5000)
 
 EP_loops %>% 
-  dplyr::select(chr, new_start, new_end) %>% 
+  dplyr::select(chr, start, end) %>% 
   write_tsv("../../sequencing_data/Reddy/P4_EP_loops.bed")
+
+EP_loops %>% 
+  dplyr::select(chr, new_start, new_end) %>% 
+  write_tsv("../../sequencing_data/Reddy/P4_EP_loops_ext.bed")
 
 
 
