@@ -23,14 +23,22 @@ dnase_DA_data <- read_delim("../../results/DiffExp_DNase/DNaseDA_data.tsv",
                             delim = "\t", escape_double = FALSE, trim_ws = TRUE)
 k27ac_DA_data <- read_delim("../../results/DiffExp_H3K27ac/K27ac_data.tsv",
                             delim = "\t", escape_double = FALSE, trim_ws = TRUE)
-loop_data <- read_delim("../../sequencing_data/Yamada/combined_MAPS_peaks.txt",
+loop_data_adult <- read_delim("../../sequencing_data/Yamada/combined_MAPS_peaks.txt",
                         delim = "\t", escape_double = FALSE, trim_ws = TRUE, col_names = F)
-zic_loop_map <- read_delim("../../results/mergedPeaks/zic_anchors.bed",
+loop_data_young <- read_delim("../../sequencing_data/Reddy/E-P-Gene_map.txt",
+                              delim = "\t", escape_double = FALSE, trim_ws = TRUE)
+zic_loop_map_adult <- read_delim("../../results/mergedPeaks/zic_p56anchors.bed",
                            delim = "\t", escape_double = FALSE, trim_ws = TRUE, col_names = F)
-dnase_loop_map <- read_delim("../../results/mergedPeaks/DNase_anchors.bed",
+dnase_loop_map_adult <- read_delim("../../results/mergedPeaks/DNase_p56anchors.bed",
                            delim = "\t", escape_double = FALSE, trim_ws = TRUE, col_names = F)
-k27ac_loop_map <- read_delim("../../results/mergedPeaks/H3K27ac_anchors.bed",
+k27ac_loop_map_adult <- read_delim("../../results/mergedPeaks/H3K27ac_p56anchors.bed",
                            delim = "\t", escape_double = FALSE, trim_ws = TRUE, col_names = F)
+zic_loop_map_young <- read_delim("../../results/mergedPeaks/zic_p4anchors.bed",
+                                delim = "\t", escape_double = FALSE, trim_ws = TRUE, col_names = F)
+dnase_loop_map_young <- read_delim("../../results/mergedPeaks/DNase_p4anchors.bed",
+                                   delim = "\t", escape_double = FALSE, trim_ws = TRUE, col_names = F)
+k27ac_loop_map_young <- read_delim("../../results/mergedPeaks/H3K27ac_p4anchors.bed",
+                                   delim = "\t", escape_double = FALSE, trim_ws = TRUE, col_names = F)
 
 # Define Functions --------------------------------------------------------
 
@@ -51,23 +59,21 @@ output_peak_set <-function(zic_reg, gene_reg){
   
 }
 
-# Wrangle data ------------------------------------------------------------
-
-
+# Wrangle adult data ------------------------------------------------------------
 # > map loops to genes ----------------------------------------------------
 # creating a unique indefieir for each loop
-loop_data = loop_data %>% 
-  dplyr::mutate(loop_id = paste0("loop", 1:n()))
+loop_data_adult = loop_data_adult %>% 
+  dplyr::mutate(loop_id = paste0("loop_", 1:n()))
 
 # reshaping loop anchors
-anchors = bind_rows(
-  loop_data[,c(1:3, 7)] %>% 
+adult_anchors = bind_rows(
+  loop_data_adult[,c(1:3, 7)] %>% 
   dplyr::rename("Chr" = "X1", "Start" = "X2", "End"= "X3"),
-  loop_data[,4:7] %>% 
+  loop_data_adult[,4:7] %>% 
   dplyr::rename("Chr" = "X4", "Start" = "X5", "End"= "X6")
 ) %>% distinct() 
 
-anchors_collapsed = anchors %>% 
+adult_anchors_collapsed = adult_anchors %>% 
   dplyr::mutate(anchor = paste0(Chr, ":", Start, "-", End)) %>%  
   dplyr::select(anchor, loop_id)
 
@@ -76,7 +82,7 @@ edb <- EnsDb.Mmusculus.v79
 tx <- transcripts(edb, columns=c("tx_id", "gene_id", "gene_name"))
 mapping <- data.frame(tx_id=tx$tx_id, SYMBOL=tx$gene_name)
 
-annot = as.data.frame(annotatePeak(makeGRangesFromDataFrame(df = anchors), TxDb = TxDb.Mmusculus.UCSC.mm10.knownGene)@anno) %>% 
+annot = as.data.frame(annotatePeak(makeGRangesFromDataFrame(df = adult_anchors), TxDb = TxDb.Mmusculus.UCSC.mm10.knownGene)@anno) %>% 
   dplyr::mutate(seqstart = start, seqstop = end) %>% 
   dplyr::select(seqnames, seqstart, seqstop, annotation, transcriptId, distanceToTSS) %>% 
   # adding gene symbols
@@ -88,13 +94,13 @@ annot = as.data.frame(annotatePeak(makeGRangesFromDataFrame(df = anchors), TxDb 
   # selecting relavant data
   dplyr::select(anchor, gene_name,tx_id , annotation, distanceToTSS ) %>% 
   # adding back full list of anchors that were not mapped to gene
-  full_join(anchors %>% dplyr::mutate(anchor = paste0(Chr, ":", Start, "-", End)) %>%  dplyr::select(anchor, loop_id) ) %>% 
+  full_join(adult_anchors %>% dplyr::mutate(anchor = paste0(Chr, ":", Start, "-", End)) %>%  dplyr::select(anchor, loop_id) ) %>% 
   distinct() %>% 
   # selecting the nearest gene to anchor mapping for each loop
   group_by(loop_id) %>% 
   slice_min(abs(distanceToTSS)) %>% 
   # adding back full list of anchors was not selected as having the closest gene mapping
-  full_join(anchors_collapsed, by = "loop_id") %>% 
+  full_join(adult_anchors_collapsed, by = "loop_id") %>% 
   distinct() %>% 
   dplyr::filter(anchor.x != anchor.y)
 
@@ -102,7 +108,7 @@ annot = as.data.frame(annotatePeak(makeGRangesFromDataFrame(df = anchors), TxDb 
 rm(edb, tx, mapping)
 
 # > map loops to Zic ----------------------------------------------------
-zic_data = zic_loop_map %>% 
+zic_data_adult = zic_loop_map_adult %>% 
   dplyr::mutate(anchor = paste0(X1, ":", X2, "-", X3),
                 zic_peak = paste0(X4, ":", X5, "-", X6)) %>% 
   dplyr::select(anchor, zic_peak) %>% 
@@ -110,10 +116,10 @@ zic_data = zic_loop_map %>%
   full_join( zic_DA_data %>% dplyr::mutate(zic_peak = paste0(Chr, ":", Start, "-", End)) %>% dplyr::select(zic_peak, zic_sig)) %>% 
   distinct() %>% 
   # adding loop id
-  left_join(anchors_collapsed)
+  left_join(adult_anchors_collapsed)
 
 # > map loops to DNase --------------------------------------------------
-dnase_data = dnase_loop_map %>% 
+dnase_data_adult = dnase_loop_map_adult %>% 
   dplyr::mutate(anchor = paste0(X1, ":", X2, "-", X3),
                 dnase_peak = paste0(X4, ":", X5, "-", X6)) %>% 
   dplyr::select(anchor, dnase_peak) %>% 
@@ -121,9 +127,9 @@ dnase_data = dnase_loop_map %>%
   full_join(dnase_DA_data %>% dplyr::mutate(dnase_peak = paste0(Chr, ":", Start, "-", End)) %>% dplyr::select(dnase_peak, dnase_sig)) %>% 
   distinct() %>% 
   # adding loop id
-  left_join(anchors_collapsed)
+  left_join(adult_anchors_collapsed)
 # > map loops to  H3K27ac ----------------------------------------------
-k27ac_data = k27ac_loop_map %>% 
+k27ac_data_adult = k27ac_loop_map_adult %>% 
   dplyr::mutate(anchor = paste0(X1, ":", X2, "-", X3),
                 k27ac_peak = paste0(X4, ":", X5, "-", X6)) %>% 
   dplyr::select(anchor, k27ac_peak) %>% 
@@ -131,26 +137,90 @@ k27ac_data = k27ac_loop_map %>%
   full_join(k27ac_DA_data %>% dplyr::mutate(k27ac_peak = paste0(Chr, ":", Start, "-", End)) %>% dplyr::select(k27ac_peak, k27ac_sig)) %>% 
   distinct() %>% 
   # adding loop id
-  left_join(anchors_collapsed)
+  left_join(adult_anchors_collapsed)
   
 
-rm(dnase_loop_map, dnase_DA_data, zic_loop_map, zic_DA_data, k27ac_loop_map, k27ac_DA_data)
 
 
-# > combining all data -----------------------------------------------------
-mapped_data = annot %>% 
-  # adding loop maps
-  full_join(zic_data, by = "loop_id",na_matches = "never") %>% 
-  distinct() %>%
-  full_join(dnase_data, by = "loop_id", na_matches = "never") %>% 
+
+
+# Wrangle young data ------------------------------------------------------
+
+EP_loops = bind_rows(
+  list( 
+    promoter = loop_data_young %>% dplyr::select(loop_id, starts_with(c("promoter"))) %>% rename_with( ~gsub("promoter_", "", .x), starts_with("promoter")),
+    enhancer = loop_data_young %>% dplyr::select(loop_id, starts_with(c("enhancer"))) %>% rename_with( ~gsub("enhancer_", "", .x), starts_with("enhancer"))
+  ),
+  .id = "id"
+) %>% 
+  dplyr::arrange(loop_id) %>% 
+  dplyr::left_join( loop_data_young %>% dplyr::select(loop_id, gene_name=GeneID) %>% distinct()) %>% 
+  dplyr::mutate(anchor = paste0(chr, ":", start, "-", end))
+
+# loops are already mapped to genes from the Reddy et. al 2021
+
+# > map loops to Zic ------------------------------------------------------
+
+zic_data_young = zic_loop_map_young %>% 
+  dplyr::mutate(anchor = paste0(X1, ":", X2, "-", X3),
+                zic_peak = paste0(X4, ":", X5, "-", X6)) %>% 
+  dplyr::select(anchor, zic_peak) %>% 
+  full_join( zic_DA_data %>% dplyr::mutate(zic_peak = paste0(Chr, ":", Start, "-", End)) %>% dplyr::select(zic_peak, zic_sig)) %>% 
   distinct() %>% 
-  full_join(k27ac_data,by = "loop_id", na_matches = "never") %>% 
+  # adding loop id
+  left_join(EP_loops %>% dplyr::select(loop_id, anchor))
+# > map loops to Dnase ----------------------------------------------------
+dnase_data_young = dnase_loop_map_young %>% 
+  dplyr::mutate(anchor = paste0(X1, ":", X2, "-", X3),
+                dnase_peak = paste0(X4, ":", X5, "-", X6)) %>% 
+  dplyr::select(anchor, dnase_peak) %>% 
+  full_join( dnase_DA_data %>% dplyr::mutate(dnase_peak = paste0(Chr, ":", Start, "-", End)) %>% dplyr::select(dnase_peak, dnase_sig)) %>% 
+  distinct() %>% 
+  # adding loop id
+  left_join(EP_loops %>% dplyr::select(loop_id, anchor))
+
+# > map loops to H3K27ac --------------------------------------------------
+k27ac_data_young = k27ac_loop_map_young %>% 
+  dplyr::mutate(anchor = paste0(X1, ":", X2, "-", X3),
+                k27ac_peak = paste0(X4, ":", X5, "-", X6)) %>% 
+  dplyr::select(anchor, k27ac_peak) %>% 
+  full_join( k27ac_DA_data %>% dplyr::mutate(k27ac_peak = paste0(Chr, ":", Start, "-", End)) %>% dplyr::select(k27ac_peak, k27ac_sig)) %>% 
+  distinct() %>% 
+  # adding loop id
+  left_join(EP_loops %>% dplyr::select(loop_id, anchor))
+
+# combining all data -----------------------------------------------------
+mapped_data_adult = annot %>% 
+  # adding loop maps
+  full_join(zic_data_adult, by = "loop_id",na_matches = "never") %>% 
+  distinct() %>%
+  full_join(dnase_data_adult, by = "loop_id", na_matches = "never") %>% 
+  distinct() %>% 
+  full_join(k27ac_data_adult,by = "loop_id", na_matches = "never") %>% 
   distinct() %>% 
   # removing anchor identifier
   dplyr::select(-starts_with("anchor"), -tx_id) %>% 
   distinct() %>% 
-  # adding single cell data
-  # full_join(scRNA_DE_data %>% dplyr::select(gene_name, gene_sig, adult_mean, p7_mean), by = "gene_name",na_matches = "never") %>% 
+  # adding bulk RNA data
+  full_join(bulkRNA_DE_data %>% dplyr::rename(gene_name = SYMBOL, gene_baseMean = baseMean, gene_padj = padj, gene_lfc = log2FoldChange), by = "gene_name",  na_matches = "never") %>% 
+  distinct() %>% 
+  #formatting
+  dplyr::select(starts_with(c("loop","zic", "k27ac", "dnase", "gene", "p7", "p60"))) %>% 
+  relocate(loop_id, zic_peak, k27ac_peak, dnase_peak, gene_name) %>% 
+  ungroup()
+
+
+mapped_data_young = EP_loops %>% 
+  # adding loop maps
+  full_join(zic_data_young, by = "loop_id",na_matches = "never") %>% 
+  distinct() %>%
+  full_join(dnase_data_young, by = "loop_id", na_matches = "never") %>% 
+  distinct() %>% 
+  full_join(k27ac_data_young,by = "loop_id", na_matches = "never") %>% 
+  distinct() %>% 
+  # removing anchor identifier
+  dplyr::select(-starts_with("anchor")) %>% 
+  distinct() %>% 
   # adding bulk RNA data
   full_join(bulkRNA_DE_data %>% dplyr::rename(gene_name = SYMBOL, gene_baseMean = baseMean, gene_padj = padj, gene_lfc = log2FoldChange), by = "gene_name",  na_matches = "never") %>% 
   distinct() %>% 
@@ -160,13 +230,15 @@ mapped_data = annot %>%
   ungroup()
   
 
-mapped_data_table =  annot %>% 
+mapped_data = bind_rows( list ( adult = mapped_data_adult, young = mapped_data_young), .id = "id")
+
+mapped_data_table_adult =  annot %>% 
   # adding loop maps
-  left_join(zic_data, by = "loop_id",na_matches = "never") %>% 
+  left_join(zic_data_adult, by = "loop_id",na_matches = "never") %>% 
   distinct() %>%
-  left_join(dnase_data, by = "loop_id", na_matches = "never") %>% 
+  left_join(dnase_data_adult, by = "loop_id", na_matches = "never") %>% 
   distinct() %>% 
-  left_join(k27ac_data,by = "loop_id", na_matches = "never") %>% 
+  left_join(k27ac_data_adult,by = "loop_id", na_matches = "never") %>% 
   distinct() %>% 
   # selecting peak identifier columns
   dplyr::select(loop_id, zic_peak, k27ac_peak, dnase_peak) %>% 
@@ -187,8 +259,43 @@ mapped_data_table =  annot %>%
   dplyr::select(starts_with(c("loop","zic", "k27ac", "dnase", "gene", "p7","60"))) %>% 
   relocate(loop_id, zic_peaks, k27ac_peaks, dnase_peaks, gene_name) 
 
+mapped_data_table_young = EP_loops %>% 
+  # adding loop maps
+  full_join(zic_data_young, by = "loop_id",na_matches = "never") %>% 
+  distinct() %>%
+  full_join(dnase_data_young, by = "loop_id", na_matches = "never") %>% 
+  distinct() %>% 
+  full_join(k27ac_data_young,by = "loop_id", na_matches = "never") %>% 
+  distinct() %>% 
+  # selecting peak identifier columns
+  dplyr::select(loop_id, zic_peak, k27ac_peak, dnase_peak) %>% 
+  distinct() %>% 
+  group_by(loop_id) %>% 
+  # collapses peaks by loop
+  summarise(zic_peaks = glue_collapse(unique(zic_peak), sep = ", ", ),
+            k27ac_peaks = glue_collapse(unique(k27ac_peak), sep = ", "),
+            dnase_peaks = glue_collapse(unique(dnase_peak), sep = ", ")) %>% 
+  ungroup() %>% 
+  # adding loop to gene info
+  left_join(annot, by = "loop_id") %>% 
+  dplyr::select("loop_id", ends_with("peaks"), "gene_name") %>% 
+  # adding bulk RNA data
+  left_join(bulkRNA_DE_data %>% dplyr::rename(gene_name = SYMBOL, gene_baseMean = baseMean, gene_padj = padj, gene_lfc = log2FoldChange), by = "gene_name",  na_matches = "never") %>% 
+  distinct() %>%  
+  #formatting
+  dplyr::select(starts_with(c("loop","zic", "k27ac", "dnase", "gene", "p7","60"))) %>% 
+  relocate(loop_id, zic_peaks, k27ac_peaks, dnase_peaks, gene_name) 
+
+mapped_data_table = bind_rows( list ( adult = mapped_data_table_adult, young = mapped_data_table_young), .id = "id") %>% 
+  dplyr::mutate(loop_id = paste0(id,"_" , loop_id))
+
+
+
+
+
 
 # Output Mapped Peaks -----------------------------------------------------
+
 write_tsv(mapped_data, "../../results/FinalTables/mapped_data.txt")
 write_tsv(mapped_data_table, "../../results/FinalTables/mapped_data_table.txt")
 

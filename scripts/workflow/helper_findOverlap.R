@@ -25,8 +25,8 @@ EPG_loops = GSE164360_Hi_C_Summary %>%
 # reformat data for bedfile
 EP_loops = bind_rows(
   list( 
-    promoter = EP_loops %>% dplyr::select(loop_id, starts_with(c("promoter"))) %>% rename_with( ~gsub("promoter_", "", .x), starts_with("promoter")),
-    enhancer = EP_loops %>% dplyr::select(loop_id, starts_with(c("enhancer"))) %>% rename_with( ~gsub("enhancer_", "", .x), starts_with("enhancer"))
+    promoter = EPG_loops %>% dplyr::select(loop_id, starts_with(c("promoter"))) %>% rename_with( ~gsub("promoter_", "", .x), starts_with("promoter")),
+    enhancer = EPG_loops %>% dplyr::select(loop_id, starts_with(c("enhancer"))) %>% rename_with( ~gsub("enhancer_", "", .x), starts_with("enhancer"))
   ),
   .id = "id"
 ) %>% 
