@@ -6,7 +6,7 @@
 cd ../../results/mergedPeaks/
 
 P56ANCHOR=../../sequencing_data/Yamada/combined_MAPS_peaks.txt
-P4ANCHOR=../../sequencing_data/Reddy/P4_EP_loops_ext.bed
+P4ANCHOR=../../sequencing_data/Reddy/P4_loops.bed
 
 cat $P56ANCHOR | awk -v OFS='\t' '{ print $1, $2, $3 }' > anchors.bed
 cat $P56ANCHOR | awk -v OFS='\t' '{ print $4, $5, $6 }' >> anchors.bed

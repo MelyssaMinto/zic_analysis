@@ -74,7 +74,7 @@ c = D3vD7 %>%
   # geom_smooth(method = "lm", se=FALSE)+
   # stat_regline_equation(label.y = 4.5, aes(label = ..eq.label..), color = "black") +
   # stat_regline_equation(label.y = 4, aes(label = ..rr.label..), color = "black") +
-  # geom_text_repel()+
+  geom_text_repel()+
   labs(x ="LFC DIV7/DIV3", y = "LFC Zic1/ +7 DIV Control") +
   theme_bw() +
   ylim(-6, 6) +
@@ -91,7 +91,7 @@ D3vD7 %>%
   # geom_smooth(method = "lm", se=FALSE)+
   # stat_regline_equation(label.y = 4.5, aes(label = ..eq.label..), color = "black") +
   # stat_regline_equation(label.y = 4, aes(label = ..rr.label..), color = "black") +
-  # geom_text_repel()+
+  geom_text_repel()+
   labs(x ="LFC DIV7/DIV3", y = "LFC Zic2/ +7 DIV Control") +
   theme_bw() +
   ylim(-6, 6) +
@@ -122,8 +122,10 @@ d = zic_p60vp7 %>%
 
 
 #> Figure ------------------------------------------------------------------
-png("../figures/poster_fig_1.png", height = 8, width = 10, res = 300, units = "in")
-plot_grid(a,b,c,d, nrow = 2, labels = LETTERS[1:4])
+fig1 = plot_grid(a,b,c,d, nrow = 2, labels = LETTERS[1:4])
+fig1
+png("../figures/poster_fig_1.png", height = 6, width = 10, res = 300, units = "in")
+fig1
 dev.off()
 
 
@@ -136,7 +138,6 @@ workflow = readPNG('../figures/homer_woorkflow.png')
 homer_results_P7 = read_tsv("../results/homer_results/P60vP7_DOWN/homer_results.tsv")
 homer_results_P60 = read_tsv("../results/homer_results/P60vP7_UP/homer_results.tsv")
 homer_results_static = read_tsv("../results/homer_results/P60vP7_NS/homer_results.tsv")
-
 
 # > panel a ---------------------------------------------------------------
 
@@ -224,13 +225,18 @@ d = plot_fam(homer_results_P60,  xlab = "# of TF Families enriched at P60", regu
 
 
 # > figure ----------------------------------------------------------------
-png("../figures/poster_fig_2.png", height =6, width = 10, res = 300, units = "in")
-plot_grid(plot_grid(a,b, ncol = 1, labels = LETTERS[1:2], rel_heights = c(.3, .7)),
-          plot_grid(c,d, ncol = 1 , labels = LETTERS[3:4]),
-          ncol = 2,
-          rel_widths = c(.7, .3)
+fig2 = plot_grid(plot_grid(a,b, ncol = 1, labels = LETTERS[1:2], rel_heights = c(.3, .7)),
+                 plot_grid(c,d, ncol = 1 , labels = LETTERS[3:4]),
+                 ncol = 2,
+                 rel_widths = c(.7, .3)
 )
+fig2
+png("../figures/poster_fig_2.png", height =6, width = 10, res = 300, units = "in")
+fig2
 dev.off()
+
+
+
 
 
 # Figure 3 ----------------------------------------------------------------
@@ -274,7 +280,7 @@ a = data.frame(group = c("P7", "P60", "Static"),
   geom_col() +
   scale_fill_manual(limits = c("P7", "P60", "Static", "No Overlap"), labels = c("P7", "P60", "Static", "No \nOverlap"),values = c("blue", "red", "black", "grey")) +
   theme_classic() +
-  labs(x = "", y = "% Overlap0", fill = "Zic Peak") 
+  labs(x = "", y = "Proportion Overlap", fill = "Zic Peak") 
 
 # > panel b ---------------------------------------------------------------
 # What proportion of the Zic peaks overlap with the atoh1 pwaks
@@ -298,7 +304,7 @@ b = mat %>%
   pivot_longer(cols = c("overlap", "non_overlap")) %>% 
   ggplot(aes(x = group, y = value, fill = name)) +
   geom_col(position = "fill") +
-  labs(x = "Zic Peak", y = "% Overlap", fill = "Overlap\n w/Atoh1") +
+  labs(x = "Zic Peak", y = "Proportion Overlap", fill = "Overlap\n w/Atoh1") +
   scale_fill_manual(limits = c("non_overlap", "overlap"), labels = c("No", "Yes"), values = c("black", "grey")) +
   geom_signif(tip_length = .000001, annotations = c("***", "***"), xmin = c(0.8, 0.8), xmax = c(2.2,3.2), y_position = c(1.01, 1.1) , color = "black") +
   theme_classic() +
@@ -325,7 +331,7 @@ c = P60vP7_zic_overlap %>%
   dplyr::count(zic_sig, group) %>% 
   ggplot(aes( x = zic_sig, y = n,  fill = group)) +
   geom_bar(stat = "identity", position = "fill") +
-  labs(y = "% Peaks", x = "Overlap with Atoh1", fill = "Genomic Region")+
+  labs(y = "Proportion of Peaks", x = "Overlap with Atoh1", fill = "Genomic Region")+
   scale_x_discrete(limits = c("DOWN", "N.S.", "UP"), labels = c("P7", "Static", "P60"))+
   theme_classic() +
   ggsignif::geom_signif(tip_length = .0000001, annotations = sig_all$p.signif, xmin = c(0.8), xmax = c(3.2), y_position = c(1.1) , color = "black")
@@ -337,14 +343,17 @@ d1 = rasterGrob(readPNG("../figures/fig1_track1.png"))
 
 
 # > figure ----------------------------------------------------------------
-png("../figures/poster_fig_3.png", height = 8, width = 10, res = 300, units = "in")
-plot_grid(plot_grid(a,b,c, ncol = 3, labels = LETTERS[1:3], rel_widths = c(.25, .3, .45)),
-          plot_grid(d1, d2, ncol = 1, labels = c("D", ""), vjust = -1),
-          ncol = 1,
-          #scale = c(1, 1.1), 
-          rel_heights = c(1, 2))
-
+fig3 = plot_grid(plot_grid(a,b,c, ncol = 3, labels = LETTERS[1:3], rel_widths = c(.25, .3, .45)),
+                 plot_grid(d1, ncol = 1, labels = c("D", ""), vjust = -0.25),
+                 ncol = 1,
+                 #scale = c(1, 1.1), 
+                 rel_heights = c(1, 1))
+fig3
+png("../figures/poster_fig_3.png", height = 6, width = 10, res = 300, units = "in")
+fig3
 dev.off()
+
+
 # Figure 4 ----------------------------------------------------------------
 # > data ------------------------------------------------------------------
 
@@ -352,16 +361,21 @@ dev.off()
 # Mapped peaks to genes via chromatin loops/links
 mapped_data = read_tsv("../results/FinalTables/mapped_data.txt")
 
+
 # > panel a ---------------------------------------------------------------
-a = rasterGrob(readPNG("../figures/fig2_d.png"))
+a = rasterGrob(readPNG("../figures/schematic.png"), interpolate = T)
+
 
 # > panel b ---------------------------------------------------------------
+b = rasterGrob(readPNG("../figures/fig2_d.png"))
+
+# > panel c ---------------------------------------------------------------
 # how many anchors are mapped to genes
-b = mapped_data %>% 
-  dplyr::select(loop_id, gene_name, gene_sig) %>% 
+c = mapped_data %>% 
+  dplyr::select(id, gene_name, gene_sig) %>% 
   dplyr::filter(gene_sig != "filtered") %>%
-  dplyr::mutate(in_anchor = ifelse(is.na(loop_id), FALSE, TRUE)) %>% 
-  dplyr::select(-loop_id) %>% 
+  dplyr::mutate(in_anchor = ifelse(is.na(id), FALSE, TRUE)) %>% 
+  dplyr::select(-id) %>% 
   distinct() %>% 
   group_by(in_anchor) %>% 
   dplyr::count(gene_sig) %>% 
@@ -369,18 +383,18 @@ b = mapped_data %>%
   geom_col() +
   geom_text(vjust = 0, fontface = "bold", color = "black", size = 3)+
   facet_wrap(~in_anchor, labeller = labeller(in_anchor = c("FALSE" = "Not in Anchor", "TRUE" = "With in Anchor"))) +
-  labs(y = "# genes \nmapped to anchors", x = "Gene Regulation") +
+  labs(y = "# genes", x = "Gene Regulation") +
   theme_bw()+
   theme(plot.title = element_text(face = "bold"))
 
-# > panel c ---------------------------------------------------------------
+# > panel d ---------------------------------------------------------------
 # How many zic peaks are not in anchors
-c = mapped_data %>% 
-  dplyr::select(loop_id, zic_peak, zic_sig) %>% 
+d = mapped_data %>% 
+  dplyr::select(id, zic_peak, zic_sig) %>% 
   dplyr::filter(zic_sig != "filtered") %>%
   dplyr::filter(!grepl("chr[X|Y]", zic_peak)) %>% 
-  dplyr::mutate(in_anchor = ifelse(is.na(loop_id), FALSE, TRUE)) %>% 
-  dplyr::select(-loop_id) %>% 
+  dplyr::mutate(in_anchor = ifelse(is.na(id), FALSE, TRUE)) %>% 
+  dplyr::select(-id) %>% 
   distinct() %>% 
   group_by(in_anchor) %>% 
   dplyr::count(zic_sig) %>% 
@@ -388,61 +402,23 @@ c = mapped_data %>%
   geom_col() +
   geom_text(vjust = 0, fontface = "bold", color = "black", size = 3)+
   facet_wrap(~in_anchor, labeller = labeller(in_anchor = c("FALSE" = "Not in Anchor", "TRUE" = "With in Anchor"))) +
-  labs(y = "# Zic peaks \nmapped to anchors", x = "Zic Regulation") +
+  labs(y = "# Zic peaks", x = "Zic Regulation") +
   theme_bw()+
   theme(plot.title = element_text(face = "bold"))
-# > panel d ---------------------------------------------------------------
-# How many DNase peaks are not in anchors
-d = mapped_data %>% 
-  dplyr::select(loop_id, dnase_peak, dnase_sig) %>%
-  dplyr::filter(dnase_sig != "filtered") %>% 
-  dplyr::filter(!grepl("chr[X|Y]", dnase_peak)) %>% 
-  dplyr::mutate(in_anchor = ifelse(is.na(loop_id), FALSE, TRUE)) %>% 
-  dplyr::select(-loop_id) %>% 
-  distinct() %>% 
-  group_by(in_anchor) %>% 
-  dplyr::count(dnase_sig) %>% 
-  ggplot(aes(x = dnase_sig, y = n, label = n))+
-  geom_col() +
-  geom_text(vjust = 0, fontface = "bold", color = "black", size = 3)+
-  facet_wrap(~in_anchor, labeller = labeller(in_anchor = c("FALSE" = "Not in Anchor", "TRUE" = "With in Anchor"))) +
-  labs(y = "# DHS peaks \nmapped to anchors", x = "DNase Regulation") +
-  theme_bw()+
-  theme(plot.title = element_text(face = "bold"))
-# > panel e ---------------------------------------------------------------
-
-# How many H3K27ac peaks are not in anchors
-e = mapped_data %>% 
-  dplyr::select(loop_id, k27ac_peak, k27ac_sig) %>%
-  dplyr::filter(k27ac_sig != "filtered") %>% 
-  dplyr::filter(!grepl("chr[X|Y]", k27ac_peak)) %>% 
-  dplyr::mutate(in_anchor = ifelse(is.na(loop_id), FALSE, TRUE)) %>% 
-  dplyr::select(-loop_id) %>% 
-  distinct() %>% 
-  group_by(in_anchor) %>% 
-  dplyr::count(k27ac_sig) %>% 
-  ggplot(aes(x = k27ac_sig, y = n, label = n))+
-  geom_col() +
-  geom_text(vjust = 0, fontface = "bold", color = "black", size = 3)+
-  facet_wrap(~in_anchor, labeller = labeller(in_anchor = c("FALSE" = "Not in Anchor", "TRUE" = "With in Anchor"))) +
-  labs(y = "# H3K27ac peaks \nmapped to anchors", x = "H3K27ac Regulation") +
-  theme_bw() +
-  theme(plot.title = element_text(face = "bold"))
-
-
-
 
 # > fig -------------------------------------------------------------------
-png("../figures/poster_fig_4.png", height = 6, width = 8, res = 300, units = "in")
+fig4 = plot_grid(
+                 plot_grid(a,
+                           plot_grid(c,d,nrow = 2, labels = c("B", "C")), 
+                           labels = c("A", ""), ncol = 2, rel_widths = c(.7, .3)),
+                 b, 
+                 ncol = 1, 
+                 labels = c("", "D"),
+                 vjust = -1)
+fig4
 
-plot_grid(a, 
-          plot_grid(b,c,d,e,nrow = 2, labels = LETTERS[2:5]),
-        
-          labels = c("A", ""),
-          ncol = 1, 
-          vjust = -.5)
-
-
+png("../figures/poster_fig_4.png", height = 8, width = 10, res = 300, units = "in")
+fig4
 dev.off()
 
 
@@ -451,7 +427,7 @@ dev.off()
 # Figure 5 ----------------------------------------------------------------
 # > panel a ---------------------------------------------------------------
 a = mapped_data %>% 
-  drop_na(c("loop_id", "zic_peak", "gene_sig", "zic_sig")) %>% 
+  drop_na(c("id", "zic_peak", "gene_sig", "zic_sig")) %>% 
   dplyr::select(zic_peak, gene_name, zic_sig, gene_sig) %>% 
   distinct() %>% 
   dplyr::filter( zic_sig != "filtered") %>% 
@@ -462,9 +438,9 @@ a = mapped_data %>%
   geom_text(aes(label=n),position = position_fill(vjust = 0.5), color = "white", fontface = "bold", size = 6) +
   scale_x_discrete(labels=c("DOWN" = "P7 Peak", "N.S." = "Static", "UP" = "P60 Peak"), expand = c(0,0))+
   scale_y_continuous(expand = c(0,0))+
-  scale_fill_manual( labels = c("Constituitive", "Down-regulated", "Up-regulated"), values = c("black", "blue", "red"))+
+  scale_fill_manual( limits = c("N.S.", "DOWN", "UP"),labels = c("Constituitive", "Down-regulated", "Up-regulated"), values = c("black", "blue", "red"))+
   theme_classic() +
-  labs(x = "Differential Signal of Zic", fill = "Diff Signal", y = "% Genes") +
+  labs(x = "Differential Signal of Zic", fill = "Diff Signal", y = "Proportion of Genes") +
   theme( legend.position = c(.8,.09),
          legend.text = element_text(size = 5),
          legend.title = element_text(size = 8, face = "bold"),
@@ -517,7 +493,7 @@ b = df %>%
 
 # > panel c ---------------------------------------------------------------
 n_peaks_to_gene = mapped_data %>% 
-  drop_na("loop_id") %>% 
+  drop_na("id") %>% 
   dplyr::select(zic_peak, gene_name) %>% 
   distinct() %>% 
   dplyr::filter(!is.na(zic_peak)) %>% 
@@ -539,7 +515,7 @@ top_genes = n_peaks_to_gene %>%
 
 
 c = mapped_data %>% 
-  drop_na("loop_id") %>% 
+  drop_na("id") %>% 
   dplyr::select(zic_peak, gene_name) %>% 
   distinct() %>% 
   dplyr::filter(!is.na(zic_peak)) %>% 
@@ -569,13 +545,14 @@ c = mapped_data %>%
 c
 
 #  >fig -------------------------------------------------------------------
+fig5 =plot_grid(plot_grid(a,b, ncol = 1, labels = c("A", "B")),
+                c,
+                ncol = 2, 
+                labels = c("", "C"),
+                rel_widths = c(.3, .7))
+fig5
 png("../figures/poster_fig_5.png", height = 8, width = 10, res = 300, units = "in")
-plot_grid(plot_grid(a,b, ncol = 1, labels = c("A", "B")),
-          c,
-          ncol = 2, 
-          labels = c("", "C"),
-          rel_widths = c(.3, .7))
-
+fig5
 dev.off()
 
 # Figure 6 ----------------------------------------------------------------
@@ -583,14 +560,9 @@ dev.off()
 # >data -------------------------------------------------------------------
 
 
-earlyVlate_act = read_tsv("../results/peak_gene/rrho/early_late_activating.txt")
-early_actVrep = read_tsv("../results/peak_gene/rrho/early_activating_repressive.txt")
-earlyVlate_rep = read_tsv("../results/peak_gene/rrho/early_late_repressive.txt")
-late_actvrep = read_tsv("../results/peak_gene/rrho/late_activating_repressive.txt")
-actvrep = read_tsv("../results/peak_gene/rrho/activating_repressive.txt")
-earlyvlate = read_tsv("../results/peak_gene/rrho/early_late.txt")
-early_allVloop = read_tsv("../results/peak_gene/rrho/early_allvloop.txt")
-late_allVloop = read_tsv("../results/peak_gene/rrho/late_allvloop.txt")
+
+earlyvlate_bart = read_tsv("../results/peak_gene/rrho/early_late.txt")
+earlyvlate_hom = read_tsv("../results/peak_gene/rrho/early_late_homer.txt")
 
 plot_distinct <- function(data, cond1, cond2, label1, label2) {
   dis = data %>% 
@@ -611,11 +583,11 @@ plot_distinct <- function(data, cond1, cond2, label1, label2) {
     geom_point(size = 0.5) +
     geom_text_repel(show.legend = F, max.overlaps = 20) +
     theme_classic() +
-    labs(x = paste0(gsub("_", " ", cond1), " \n-log10(adj p-val)"), y = paste0(gsub("_", " ", cond2), " \n-log10(adj p-val)") ) +
+    labs(x = paste0(gsub("_", " ", cond1), " -log10(adj p-val)"), y = paste0(gsub("_", " ", cond2), " -log10(adj p-val)") ) +
     scale_color_manual(name = "", limits = c(cond1, cond2, "Similar Enrichment"), labels = c(label1, label2, "Similar \nEnrichment"), values = c("dodgerblue4", "darkorange4", "grey") ) +
     annotate(geom = "table", label = list(dis_table), x = 4.5, y = 4.5, fill = "white" ,  table.theme = ttheme_gtlight)+
-    scale_y_continuous(limits = c(0, 4.5)) +
-    scale_x_continuous(limits = c(0, 4.5)) +
+    scale_y_continuous(limits = c(0, 5)) +
+    scale_x_continuous(limits = c(0, 5)) +
     theme(legend.position = "bottom") +
     guides(colour = guide_legend(override.aes = list(size=3)))
 }
@@ -689,37 +661,34 @@ plot_pathways <-function(data, cond1, cond2, gene_expr_level){
 
 
 # >panel a ----------------------------------------------------------------
-a = rasterGrob(readPNG("../figures/bart_workflow.png"), interpolate = T)
+a = rasterGrob(readPNG("../figures/rrho_workflow.png"), interpolate = T)
 
 # > panel b ---------------------------------------------------------------
-b = plot_distinct(early_actVrep, "early_activating", "early_repressive", "Distinct \nActivating", "Distinct \nRepressive" )
-
-# > panel c ---------------------------------------------------------------
-c = plot_distinct(late_actvrep, "late_activating", "late_repressive", "Distinct \nActivating", "Distinct \nRepressive" )
-
-# > panel d ---------------------------------------------------------------
-
-d = plot_distinct(actvrep, "activating", "repressive", "Distinct \nActivating", "Distinct \nRepressive" )
- 
-
-# > panel e ---------------------------------------------------------------
 gene_expr_filt = 100
 
-e1 = plot_distinct(earlyvlate, "early", "late", "Distinct Early", "Distinct Late" )
-e2 = plot_distinct_gene(earlyvlate, "early", "late", gene_expr_filt )
-e3 = plot_pathways(earlyvlate, "early", "late", gene_expr_filt )
+b1 = plot_distinct(earlyvlate_bart, "early", "late", "Distinct Early", "Distinct Late" )
+b2 = plot_distinct_gene(earlyvlate_bart, "early", "late", gene_expr_filt )
+b3 = plot_pathways(earlyvlate_bart, "early", "late", gene_expr_filt )
+
+# > panel c ---------------------------------------------------------------
+gene_expr_filt = 100
+
+c1 = plot_distinct(earlyvlate_hom, "early", "late", "Distinct Early", "Distinct Late" )
+c2 = plot_distinct_gene(earlyvlate_hom, "early", "late", gene_expr_filt )
+c3 = plot_pathways(earlyvlate_hom, "early", "late", gene_expr_filt )
 
 
 #  > fig ------------------------------------------------------------------
+fig6 = plot_grid(a,
+                 plot_grid(b1,b2, nrow = 1, labels = c("Bi", "Bii"), rel_widths = c(.4, .6)),
+                 plot_grid(c1,c2 , nrow = 1, labels = c("Ci", "Cii"), rel_widths = c(.4, .6)),
+                 nrow = 3,
+                 labels = c("A"),
+                 rel_heights = c(.25, .375,.375))
+fig6
 
-png("../figures/poster_fig_6.png", height = 8, width = 10, res = 300, units = "in")
-plot_grid(a,
-          plot_grid(b,c,d, nrow = 1, labels =LETTERS[2:4]),
-          plot_grid(e1,e2,e3 , nrow = 1, labels = c("Ei", "Eii", "Eiii"), rel_widths = c(1,1,1.5)),
-          nrow = 3,
-          labels = c("A"),
-          scale = c(.9, 1, 1),
-          rel_heights = c(.25, .375, .375))
+png("../figures/poster_fig_6.png", height = 10, width = 10, res = 300, units = "in")
+fig6
 dev.off()
 
 

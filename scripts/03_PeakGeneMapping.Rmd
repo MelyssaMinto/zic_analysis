@@ -35,13 +35,18 @@ mapped_data = read_tsv("../results/FinalTables/mapped_data.txt")
 gene_expr = read_tsv("../results/DiffExp_RNA/normalized_counts.tsv")
 
 # Chromatin Links
-# > Source: Yamada et al. 2019 https://www.nature.com/articles/s41586-019-1190-7
-plac_file <- read_delim("../sequencing_data/Yamada/combined_MAPS_peaks.txt", 
-                        delim = "\t", escape_double = FALSE, col_names = FALSE, trim_ws = TRUE)
-# > Source: Reddy et al. 2021 https://www.nature.com/articles/s41467-021-25846-3
-ep_file <-read_delim("../sequencing_data/Reddy/E-P-Gene_map.txt",
-                     delim = "\t", escape_double = FALSE, col_names = TRUE, trim_ws = TRUE) %>% 
-          dplyr::select(starts_with(c("enhancer", "promoter")))
+# > P56 PLAC-seq loops. source: https://www.nature.com/articles/s41586-019-1190-7
+loop_data_adult <- read_delim("../sequencing_data/Yamada/combined_MAPS_peaks.txt",
+                        delim = "\t", escape_double = FALSE, trim_ws = TRUE, col_names = F) %>% 
+                    dplyr::mutate(loop_id = paste0("loop_", 1:n())) 
+# > P4 loops derived from Hi-C. source: https://www.nature.com/articles/s41467-021-25846-3
+loop_data_young <- read_excel("/media/west-lab-share/Melyssa_Minto/Cerebellum/zic_analysis/sequencing_data/Reddy/GSE164360_Hi-C_Summary.xlsx") %>% 
+    dplyr::select(ends_with(c("A", "B"))) %>% 
+  set_names(paste0("X",1:6)) %>% 
+  dplyr::mutate(loop_id = paste0("loop_", 1:n())) %>% 
+  dplyr::mutate(X1 = ifelse(is.na(X1), "chrX", paste0("chr",X1)),
+                X4 = ifelse(is.na(X4), "chrX", paste0("chr",X4)))
+
 ```
 
 ```{r define functions}
@@ -103,56 +108,64 @@ plot_track <- function(gene, tracks,  expand_l= 0, expand_r = 0, ylim = c(0,3)){
 # > Anchor Mapping Stats ---------------------------------------------------
 # how many anchors are mapped to genes
 sa1 = mapped_data %>% 
-  dplyr::select(loop_id, gene_name, gene_sig) %>% 
+  dplyr::select(id, gene_name, gene_sig) %>% 
   dplyr::filter(gene_sig != "filtered") %>%
-  dplyr::mutate(in_anchor = ifelse(is.na(loop_id), FALSE, TRUE)) %>% 
-  dplyr::select(-loop_id) %>% 
+  dplyr::mutate(in_anchor = ifelse(is.na(id), FALSE, TRUE),
+                stage = case_when(grepl("adult", id) ~ "adult",
+                                  grepl("young", id) ~ "young")) %>% 
+  dplyr::select(-id) %>% 
   distinct() %>% 
-  group_by(in_anchor) %>% 
+  group_by(in_anchor, stage) %>% 
   dplyr::count(gene_sig) %>% 
-  ggplot(aes(x = gene_sig, y = n, label = n, fill =  in_anchor))+
+  ggplot(aes(x = gene_sig, y = n, label = n, fill = stage))+
   geom_col() +
-  geom_text(vjust = 2, fontface = "bold", color = "black", size = 3)+
-  #facet_wrap(~in_anchor, labeller = labeller(in_anchor = c("FALSE" = "Not in Anchor", "TRUE" = "With in Anchor"))) +
+  geom_text(vjust = 1, fontface = "bold", color = "black", size = 3)+
+  facet_wrap(~in_anchor, labeller = labeller(in_anchor = c("FALSE" = "Not in Anchor", "TRUE" = "With in Anchor"))) +
   labs(y = "# genes", x = "Gene Regulation") +
   theme_bw()+
-  theme(plot.title = element_text(face = "bold"))
+  theme(plot.title = element_text(face = "bold"),
+        legend.position = "bottom")
   
   
 
 # How many zic peaks are not in anchors
 sb1 = mapped_data %>% 
-  dplyr::select(loop_id, zic_peak, zic_sig) %>% 
+  dplyr::select(id, zic_peak, zic_sig) %>% 
   dplyr::filter(zic_sig != "filtered") %>%
-  dplyr::filter(!grepl("chr[X|Y]", zic_peak)) %>% 
-  dplyr::mutate(in_anchor = ifelse(is.na(loop_id), FALSE, TRUE)) %>% 
-  dplyr::select(-loop_id) %>% 
-  distinct() %>% View()
+  dplyr::filter(!grepl("chr[X|Y]", zic_peak)) %>%
+  dplyr::mutate(in_anchor = ifelse(is.na(id), FALSE, TRUE),
+                stage = case_when(grepl("adult", id) ~ "adult",
+                                  grepl("young", id) ~ "young")) %>% 
+  dplyr::select(-id) %>% 
+  distinct() %>% 
   group_by(in_anchor) %>% 
-  dplyr::count(zic_sig) %>% 
-  ggplot(aes(x = zic_sig, y = n, label = n, fill =  in_anchor))+
+  dplyr::count(zic_sig, stage) %>% 
+  ggplot(aes(x = zic_sig, y = n, label = n, fill = stage))+
   geom_col() +
-  geom_text(vjust = 2, fontface = "bold", color = "black", size = 3)+
-  #facet_wrap(~in_anchor, labeller = labeller(in_anchor = c("FALSE" = "Not in Anchor", "TRUE" = "With in Anchor"))) +
+  geom_text(vjust = 1, fontface = "bold", color = "black", size = 3)+
+  facet_wrap(~in_anchor, labeller = labeller(in_anchor = c("FALSE" = "Not in Anchor", "TRUE" = "With in Anchor"))) +
   labs(y = "# Zic peaks", x = "Zic Regulation") +
   theme_bw()+
-  theme(plot.title = element_text(face = "bold"))
+  theme(plot.title = element_text(face = "bold"),
+        legend.position = "bottom")
 
 
 # How many DNase peaks are not in anchors
 sc1 = mapped_data %>% 
-  dplyr::select(loop_id, dnase_peak, dnase_sig) %>%
+  dplyr::select(id, dnase_peak, dnase_sig) %>%
   dplyr::filter(dnase_sig != "filtered") %>% 
   dplyr::filter(!grepl("chr[X|Y]", dnase_peak)) %>% 
-  dplyr::mutate(in_anchor = ifelse(is.na(loop_id), FALSE, TRUE)) %>% 
-  dplyr::select(-loop_id) %>% 
-  distinct() %>% 
-  group_by(in_anchor) %>% 
+  dplyr::mutate(in_anchor = ifelse(is.na(id), FALSE, TRUE),
+                stage = case_when(grepl("adult", id) ~ "adult",
+                                  grepl("young", id) ~ "young")) %>% 
+  dplyr::select(-id) %>% 
+  distinct() %>%
+  group_by(in_anchor, stage) %>% 
   dplyr::count(dnase_sig) %>% 
-  ggplot(aes(x = dnase_sig, y = n, label = n, fill =  in_anchor))+
+  ggplot(aes(x = dnase_sig, y = n, label = n, fill = stage))+
   geom_col() +
-  geom_text(vjust = 2, fontface = "bold", color = "black", size = 3)+
-  #facet_wrap(~in_anchor, labeller = labeller(in_anchor = c("FALSE" = "Not in Anchor", "TRUE" = "With in Anchor"))) +
+  geom_text(vjust = 2,fontface = "bold", color = "black", size = 3)+
+  facet_wrap(~in_anchor, labeller = labeller(in_anchor = c("FALSE" = "Not in Anchor", "TRUE" = "With in Anchor"))) +
   labs(y = "# DHS peaks", x = "DNase Regulation") +
   theme_bw()+
   theme(plot.title = element_text(face = "bold"))
@@ -160,37 +173,39 @@ sc1 = mapped_data %>%
 
 # How many H3K27ac peaks are not in anchors
 sd1 = mapped_data %>% 
-  dplyr::select(loop_id, k27ac_peak, k27ac_sig) %>%
+  dplyr::select(id, k27ac_peak, k27ac_sig) %>%
   dplyr::filter(k27ac_sig != "filtered") %>% 
   dplyr::filter(!grepl("chr[X|Y]", k27ac_peak)) %>% 
-  dplyr::mutate(in_anchor = ifelse(is.na(loop_id), FALSE, TRUE)) %>% 
-  dplyr::select(-loop_id) %>% 
+  dplyr::mutate(in_anchor = ifelse(is.na(id), FALSE, TRUE),
+                stage = case_when(grepl("adult", id) ~ "adult",
+                                  grepl("young", id) ~ "young")) %>% 
+  dplyr::select(-id) %>% 
   distinct() %>% 
   group_by(in_anchor) %>% 
-  dplyr::count(k27ac_sig) %>% 
-  ggplot(aes(x = k27ac_sig, y = n, label = n, fill =  in_anchor))+
+  dplyr::count(k27ac_sig, stage) %>% 
+  ggplot(aes(x = k27ac_sig, y = n, label = n, fill = stage))+
   geom_col() +
   geom_text(vjust = 2, fontface = "bold", color = "black", size = 3)+
-  #facet_wrap(~in_anchor, labeller = labeller(in_anchor = c("FALSE" = "Not in Anchor", "TRUE" = "With in Anchor"))) +
+  facet_wrap(~in_anchor, labeller = labeller(in_anchor = c("FALSE" = "Not in Anchor", "TRUE" = "With in Anchor"))) +
   labs(y = "# H3K27ac peaks", x = "H3K27ac Regulation") +
   theme_bw() +
   theme(plot.title = element_text(face = "bold"))
 
 
-#png("../figures/supp_figure2.png", height = 5, width = 7, units = "in", res = 300)
-plot_grid(sa1,sb1,sc1,sd1, nrow = 2, labels = LETTERS[1:4])
-#dev.off()
+png("../figures/supp_figure2.png", height = 4, width = 7, units = "in", res = 300)
+plot_grid(sa1,sb1, nrow = 1, labels = LETTERS[1:4])
+dev.off()
 
 ```
 
 Supplemental Figure 2. Mapping statitistics of A) Nearest gene, B) Zic, C) DNase, and D) H3K27ac peaks in H4Kme3 PLAC-seq derived chroamtin loops
 
 # Supplemental Figure 2
-```{r supp fig 2, fig.height=5, fig.width=7}
+```{r supp fig 2, fig.height=7, fig.width=7}
 # > How many peaks per genes ----------------------------------------------
 
 n_peaks_to_gene = mapped_data %>% 
-  drop_na("loop_id") %>% 
+  drop_na("id") %>% 
   dplyr::select(zic_peak, gene_name) %>% 
   distinct() %>% 
   dplyr::filter(!is.na(zic_peak)) %>% 
@@ -209,7 +224,7 @@ sa2 = n_peaks_to_gene %>%
   ggplot(aes(x = n, y = gene_name, fill =gene_sig))+
   geom_bar(stat = "identity") +
   geom_text(aes(label = n), hjust = 1, color = "white", fontface = "bold") +
-  scale_fill_manual( name = "Gene Diff Signal", labels = c("Constituitive", "Down-regulated", "Up-regulated"), values = c("black", "blue", "red"))+
+  scale_fill_manual( name = "Gene Diff Signal", limits = c("N.S.", "DOWN", "UP"), labels = c("Constituitive", "Down-regulated", "Up-regulated"), values = c("black", "blue", "red"))+
   theme_classic() +
   theme(legend.position = "bottom") +
   labs(y = "")
@@ -243,14 +258,14 @@ sd2 = n_peaks_to_gene %>%
   theme_classic() +
   labs(x = "Number of Zic Peaks", y = "Absolute Gene LFC")
 
-#png("../figures/supp_figure3.png", height = 7, width = 10, units = "in", res = 300)
+png("../figures/supp_figure3.png", height = 7, width = 10, units = "in", res = 300)
 plot_grid(sa2, 
           plot_grid(sb2, sc2,sd2, align = "v", ncol = 1, labels = c("B", "C", "D")),
           ncol = 2,
           nrow = 1,
           labels = c("A", ""),
           rel_widths = c(2, 1))
-#dev.off()
+dev.off()
 ```
 Supplemental Figure 3. A) Count of Zic peaks mapped to gene. B) Distribution of number of zic peaks by gene regulation.  Scatterplots of C) Mean expression and D) Log2FC of genes against Number of zic peaks show that there is no correlation between number of zic peaks and gene degree of gene regulation. 
 
@@ -344,6 +359,11 @@ zic_distance %>%
 
 
 # Figure 2
+
+```{r schematic}
+sch <-  rasterGrob(readPNG("../figures/schematic.png"), interpolate = T)
+```
+
 ```{r panel a , fig.height=4, fig.width=3}
 # > nearest gene expression -----------------------------------------------
 
@@ -379,7 +399,7 @@ plt = df %>%
   scale_x_discrete(labels=c("DOWN" = "P7 Peak", "N.S." = "Static", "UP" = "P60 Peak"), expand = c(0,0))+
   theme_classic()+
   xlab("Zic Peak Enrichement") +
-  ylab("Mean Expresson of Mapped Gene") +
+  ylab("Mean Expresson \nof Mapped Gene") +
   ggsignif::geom_signif(
     tip_length = 0,
     annotations = stat.test$p.adj.signif,
@@ -390,7 +410,8 @@ plt = df %>%
   
 a1 = plt +
   geom_point(size = 1, position = position_dodge(0.8)) +
-  theme(legend.position="bottom") +
+  theme(legend.position="bottom",
+        legend.title = element_text(size = 8, face = "bold")) +
   labs(fill = "Expression", color = "Expression")
  
   
@@ -462,7 +483,7 @@ plot_grid(a3, a4, a5, ncol = 1)
 # > nearest gene categorical ----------------------------------------------
 
 b = mapped_data %>% 
-  drop_na(c("loop_id", "zic_peak", "gene_sig", "zic_sig")) %>% 
+  drop_na(c("id", "zic_peak", "gene_sig", "zic_sig")) %>% 
   dplyr::select(zic_peak, gene_name, zic_sig, gene_sig) %>% 
   distinct() %>% 
   dplyr::filter( zic_sig != "filtered") %>% 
@@ -470,17 +491,17 @@ b = mapped_data %>%
   dplyr::count(zic_sig, gene_sig) %>% 
   ggplot(aes(x = zic_sig, y =n,  fill = gene_sig))+
   geom_bar(position = "fill", stat = "identity") +
-  geom_text(aes(label=n),position = position_fill(vjust = 0.5), color = "white", fontface = "bold", size = 6) +
+  geom_text(aes(label=n),position = position_fill(vjust = 0.5), color = "white", fontface = "bold", size = 3) +
   scale_x_discrete(labels=c("DOWN" = "P7 Peak", "N.S." = "Static", "UP" = "P60 Peak"), expand = c(0,0))+
   scale_y_continuous(expand = c(0,0))+
-  scale_fill_manual( labels = c("Constituitive", "Down-regulated", "Up-regulated"), values = c("black", "blue", "red"))+
+  scale_fill_manual( limits = c("N.S.", "DOWN", "UP"), labels = c("N.S.", "P7", "P60"), values = c("black", "blue", "red"))+
   theme_classic() +
-  labs(x = "Differential Signal of Zic", fill = "Diff Signal", y = "% Genes") +
-  theme( legend.position = c(.8,.09),
-         legend.text = element_text(size = 5),
+  labs(x = "Zic Peak\n Enrichment", fill = "Gene\nEnrichment", y = "Proportion\n of Genes") +
+  theme( legend.position = "bottom",
+         legend.text = element_text(size = 6),
          legend.title = element_text(size = 8, face = "bold"),
-        legend.key.size = unit(.3, "lines"),
-        legend.box.background = element_rect(color = "black")
+        legend.key.size = unit(.5, "lines"),
+       # legend.box.background = element_rect(color = "black")
         )
 
 b
@@ -492,18 +513,18 @@ b
 
 
 
-```{r panel c, fig.height=12, fig.width=7}
+```{r panel c, fig.height=4, fig.width=8}
 
 top_genes = n_peaks_to_gene %>% 
   dplyr::filter(gene_sig != "N.S.") %>% 
-  arrange(n) %>% 
+  dplyr::arrange(n) %>% 
   group_by(gene_sig) %>% 
-  top_n(70, n) %>% 
+  top_n(40, n) %>% 
   pull(gene_name)
 
 
 c = mapped_data %>% 
-  drop_na("loop_id") %>% 
+  drop_na("id") %>% 
   dplyr::select(zic_peak, gene_name) %>% 
   distinct() %>% 
   dplyr::filter(!is.na(zic_peak)) %>% 
@@ -513,20 +534,23 @@ c = mapped_data %>%
   left_join(mapped_data %>% dplyr::select(gene_name, gene_sig, zic_peak, zic_sig) %>%  distinct()) %>% 
   dplyr::filter(gene_name %in% top_genes) %>% 
   dplyr::mutate(gene_name = fct_reorder(gene_name, n))  %>% 
-  arrange(desc(n)) %>%
+  dplyr::arrange(desc(n)) %>%
   ggplot(aes(y = gene_name, fill =zic_sig))+
   geom_bar(stat = "count", ) +
   #coord_flip()+
   # geom_text(aes(label = n), hjust = 1, color = "white", fontface = "bold") +
   facet_wrap(.~gene_sig, scales = "free", labeller = labeller(gene_sig = c("DOWN" = "Down-regulated", "UP" = "Up-regulated")), ncol = 2)+
-  scale_fill_manual( name = "Zic Diff Signal", labels = c("P7 Peak", "Static", "P60 Peak"), values = c("blue", "black", "red"))+
+  scale_fill_manual( name = "Zic Peak Enrichment", limits = c("DOWN", "N.S.", "UP"), labels = c("P7 Peak", "Static", "P60 Peak"), values = c("blue", "black", "red"))+
   theme_classic() + 
   labs(y = "Gene Symbol", x = "# Zic Peaks Mapped to Gene") +
-  theme(axis.text.x = element_text(size = 8, angle = 45, hjust = 1), legend.position = c(.99, .25),
-                                                     legend.justification = c("right", "top"),
+  theme(axis.text.x = element_text(size = 8, angle = 45, hjust = 1), legend.position = "bottom",
+                                                     #legend.justification = c("right", "top"),
                                                      legend.box.just = "right",
-                                                     legend.margin = margin(6, 6, 6, 6),
-                                                     legend.box.background = element_rect(color="black", size=1))
+                                                     legend.margin = margin(2, 2, 2, 2),
+                                                     #legend.box.background = element_rect(color="black", size=1),
+                                                     legend.text = element_text(size = 5),
+                                                     legend.key.size = unit(.3, "lines"),
+                                                     legend.title = element_text(size = 8, face = "bold"))
       
 
 
@@ -543,6 +567,7 @@ scheme <- getScheme(name=getOption("Gviz.scheme"))
 scheme$GdObject$col.axis = "white"
 scheme$GdObject$background.title = "black"
 scheme$GdObject$fontcolor = "black"
+scheme$GdObject$fontsize = 18
 scheme$GdObject$rotation.title = 90
 scheme$GeneRegionTrack$transcriptAnnotation = "symbol"
 scheme$GeneRegionTrack$col = "black"
@@ -567,10 +592,11 @@ customFromTxDb <- GeneRegionTrack(TxDb.Mmusculus.UCSC.mm10.knownGene)
 #                         transcript = "name", strand = "strand", 
 #                         fill = "#8282d2", name = "UCSC Genes")
 
+all_loops = bind_rows(loop_data_adult, loop_data_young)
 
-interaction_track <- InteractionTrack(GenomicInteractions(GRanges(seqnames = plac_file$X1, ranges = IRanges(plac_file$X2, plac_file$X3)), 
-                                                          GRanges(seqnames = plac_file$X4, ranges = IRanges(plac_file$X5, plac_file$X6))), 
-                                      name = "H3K4me3 PLAC-seq")
+interaction_track <- InteractionTrack(GenomicInteractions(GRanges(seqnames = all_loops$X1, ranges = IRanges(all_loops$X2, all_loops$X3)), 
+                                                          GRanges(seqnames = all_loops$X4, ranges = IRanges(all_loops$X5, all_loops$X6))), 
+                                      name = "Chromatin Loops")
 
 # Zic ChIP, H3K27ac ChIP, DHS-seq, RNA-seq
 # > Source: Frank et al. 2015 https://www.nature.com/articles/nn.3995
@@ -579,14 +605,14 @@ p7_zic_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/zic_chip/
                    genome = "mm10",name = "Zic \nP7") 
 p60_zic_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/zic_chip/SRR1557093/SRR1557093_norm.bw", as="GRanges"), 
                     genome = "mm10", name = "Zic \nP60") 
-p7_dnase_bw <-  DataTrack(import.bw("../sequencing_data/preprocessed_data/DNase/SRR1557041/SRR1557041.bw", as="GRanges"),
-                           genome = "mm10",name = "DNase \nP7") 
-p60_dnase_bw <-  DataTrack(import.bw("../sequencing_data/preprocessed_data/DNase/SRR1557047/SRR1557047.bw", as="GRanges"), 
-                            genome = "mm10",name = "DNase \nP60") 
-p7_k27ac_bw <-  DataTrack(import.bw("../sequencing_data/preprocessed_data/H3K27ac/SRR3993161/SRR3993161_norm.bw", as="GRanges"), 
-                           genome = "mm10",name = "H3K27ac \nP7") 
-p60_k27ac_bw <-  DataTrack(import.bw("../sequencing_data/preprocessed_data/H3K27ac/SRR3993163/SRR3993163_norm.bw", as="GRanges"), 
-                            genome = "mm10",name = "H3K27ac \nP60") 
+# p7_dnase_bw <-  DataTrack(import.bw("../sequencing_data/preprocessed_data/DNase/SRR1557041/SRR1557041.bw", as="GRanges"),
+#                            genome = "mm10",name = "DNase \nP7") 
+# p60_dnase_bw <-  DataTrack(import.bw("../sequencing_data/preprocessed_data/DNase/SRR1557047/SRR1557047.bw", as="GRanges"), 
+#                             genome = "mm10",name = "DNase \nP60") 
+# p7_k27ac_bw <-  DataTrack(import.bw("../sequencing_data/preprocessed_data/H3K27ac/SRR3993161/SRR3993161_norm.bw", as="GRanges"), 
+#                            genome = "mm10",name = "H3K27ac \nP7") 
+# p60_k27ac_bw <-  DataTrack(import.bw("../sequencing_data/preprocessed_data/H3K27ac/SRR3993163/SRR3993163_norm.bw", as="GRanges"), 
+#                             genome = "mm10",name = "H3K27ac \nP60") 
 p7_rna_bw <-  DataTrack(import.bw("../sequencing_data/preprocessed_data/RNA/p7_b1/p7_b1_norm.bw", as="GRanges"), 
                            genome = "mm10",name = "RNA \nP7") 
 p60_rna_bw <-  DataTrack(import.bw("../sequencing_data/preprocessed_data/RNA/p60_b1/p60_b1_norm.bw", as="GRanges"), 
@@ -599,22 +625,23 @@ p60_rna_bw <-  DataTrack(import.bw("../sequencing_data/preprocessed_data/RNA/p60
               interaction_track,
                p7_zic_bw,
                p60_zic_bw, 
-               p7_dnase_bw,
-               p60_dnase_bw,
-               p7_k27ac_bw,
-               p60_k27ac_bw,
+               # p7_dnase_bw,
+               # p60_dnase_bw,
+               # p7_k27ac_bw,
+               # p60_k27ac_bw,
                p7_rna_bw,
                p60_rna_bw)
   
   
 
 # plot
-plot_track("Grin2c",tracks,  expand_l = 100000, expand_r = 1000)
-
-plot_track("Wnt7b", tracks,  expand_l = 100000, expand_r = 10000)
-
-plot_track("Sez6l", tracks,  expand_l = 10000, expand_r = 10000)
-
+# plot_track("Grin2c",tracks,  expand_l = 100000, expand_r = 1000)
+# 
+# plot_track("Wnt7b", tracks,  expand_l = 100000, expand_r = 10000)
+# 
+# plot_track("Sez6l", tracks,  expand_l = 10000, expand_r = 10000)
+# 
+# plot_track("Chd7", tracks,  expand_l = 10000, expand_r = 250000)
 
 
 png("../figures/fig2_d.png", units = "in", height = 6, width = 15, res = 300)
@@ -625,13 +652,17 @@ d = rasterGrob(readPNG("../figures/fig2_d.png"))
 
 ```
 ![](../figures/fig2_d.png)
-```{r figure 2, fig.height=12, fig.width=10}
+```{r figure 2, fig.height=15, fig.width=15}
 
-fig2 = plot_grid(plot_grid(plot_grid(b, a1, ncol = 1, labels = c("A", "B")), 
-                    c, ncol = 2,labels = c("", "C"), rel_widths = c(1,3)),
-          d, ncol = 1, rel_heights =  c(2,1), labels = c("", "D"), vjust = 0)
 
-png("../figures/figure2.png", height = 12, width = 10, res = 300, units = "in")
+fig2 = plot_grid( plot_grid( sch,  plot_grid(b, a1, ncol = 1, labels = c("B", "C")), c, rel_widths = c(.5, .15, .35), nrow = 1,labels = c("A", "", "D")),
+           d,
+           ncol = 1,
+           labels = c( "","E" ),
+           rel_heights = c(.50, .50)
+           )
+
+png("../figures/figure2.png", height = 12, width = 12, res = 300, units = "in")
 fig2
 dev.off()
 

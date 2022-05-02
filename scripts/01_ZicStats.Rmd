@@ -1,0 +1,143 @@
+---
+title: "New figure 1"
+author: "Melyssa Minto"
+date: "4/29/2022"
+output: html_document
+---
+
+```{r}
+library(png)
+library(tidyverse)
+library(cowplot)
+library(gridExtra)
+library(ChIPseeker)
+library(TxDb.Mmusculus.UCSC.mm10.knownGene)
+library(cowplot)
+```
+
+```{r}
+zic_peak_data <- read_delim("/media/west-lab-share/Melyssa_Minto/Cerebellum/zic_analysis/results/FinalTables/zic_peak_data.txt", delim = "\t", escape_double = FALSE, trim_ws = TRUE)
+gene_expr = read_tsv("../results/DiffExp_RNA/normalized_counts.tsv")
+
+
+```
+```{r zic3d}
+zic3d = rasterGrob(readPNG("../figures/Zic1_2_3D.png"))
+```
+![](../figures/Zic1_2_3D.png)
+
+```{r zic1d}
+zic1d = rasterGrob(readPNG("../figures/Zic1_2_1D.png"))
+
+```
+
+![](../figures/Zic1_2_1D.png)
+
+```{r peak overlap, fig.height=4, fig.width=6}
+
+facet_labs = c("H3K27ac", "DNase" )
+names(facet_labs) = c("k27ac_overlap", "dnase_overlap" )
+
+zic_overlap = zic_peak_data %>% 
+  dplyr::rename(zic_sig = zic_zic_sig) %>% 
+  dplyr::select(sequence_name, k27ac_sequence_name, dnase_sequence_name, ends_with("sig")) %>% 
+  distinct() %>% 
+  dplyr::filter(!(sequence_name == "no zic peak")) %>% 
+  dplyr::filter(!(zic_sig == "filtered")) %>% 
+  dplyr::mutate(k27ac_overlap = ifelse(k27ac_sequence_name !="no overlap" & k27ac_sig %in% c(zic_sig, "N.S.") , 'yes', 'no'),
+                dnase_overlap = ifelse(dnase_sequence_name !="no overlap" & dnase_sig  %in% c(zic_sig, "N.S.") , 'yes', 'no')) %>%  
+  pivot_longer(cols = c("k27ac_overlap", "dnase_overlap" )) %>% 
+  ggplot(aes(y = zic_sig, fill = value))+
+  geom_bar() +
+  coord_flip() +
+  scale_y_discrete(limits = c("DOWN", "N.S.", "UP"), labels = c("P7", "N.S.", "P60")) +
+  scale_fill_manual(values = c("grey", "black"))+
+  facet_wrap(~name, labeller = labeller(name = facet_labs)) +
+  labs( y = "Zic ChIP Enrichment", x = "# of Peaks", fill = "Overlap") +
+  theme_bw()+
+  theme( panel.grid = element_blank())+
+  scale_x_continuous(expand = c(0,0))
+
+
+
+zic_overlap
+```
+
+
+```{r motif, fig.height=4, fig.width=6}
+zic_motif = zic_peak_data %>% 
+  dplyr::filter(!(sequence_name == "no zic peak")) %>% 
+  dplyr::rename(zic_sig = zic_zic_sig) %>% 
+  dplyr::select(sequence_name, zic_sig, motif_id, n_motifs_in_peak ) %>% 
+  distinct() %>% 
+  dplyr::filter(!(zic_sig == "filtered")) %>% 
+  group_by(zic_sig) %>% 
+  dplyr::count(motif_id) %>%
+  ungroup() %>% 
+  ggplot(aes(x = zic_sig, y = n, fill = motif_id)) +
+  geom_bar(stat = "identity" )+
+  labs( x = "Zic ChIP Enrichment", y = "# of Peaks", fill = "Motif") +
+  scale_fill_manual(values = c("#143589", "#E1BE6A", "#40B0A6"), labels = c("No Zic Motif", "Zic1 Motif", "Zic2 Motif"), limits = c("no motif", "ZIC1_MOUSE.H11MO.0.B","ZIC2_MOUSE.H11MO.0.C"))+
+  scale_x_discrete(limits = c("DOWN", "N.S.", "UP"), labels = c("P7", "N.S.", "P60"))+
+  theme_bw() +
+  theme( panel.grid = element_blank())+
+  scale_y_continuous(expand = c(0,0))
+
+
+
+zic_motif
+```
+
+
+```{r loci, fig.height=4, fig.width=6}
+sample_files = c("../results/DiffExp_ZicChIP/P60vP7_DOWN.bed", "../results/DiffExp_ZicChIP/P60vP7_NS.bed", "../results/DiffExp_ZicChIP/P60vP7_UP.bed")
+sample_files <- as.list(sample_files)
+names(sample_files) <- c("P7", "N.S.", "P60")
+
+zic_anno = lapply(sample_files, annotatePeak, TxDb=TxDb.Mmusculus.UCSC.mm10.knownGene, tssRegion=c(-1000, 1000), verbose=FALSE)
+
+zic_anno_dat = bind_rows(list( P7 = zic_anno$P7@annoStat, N.S. = zic_anno$N.S.@annoStat, P60 = zic_anno$P60@annoStat), .id = "id")
+
+zic_loci = zic_anno_dat %>% 
+  ggplot(aes(x = id, y = Frequency, fill = Feature))+
+  geom_col() +
+  labs(y = "Percentage(%)", x = "Zic ChIP Enrichment") +
+  theme_bw() +
+  scale_x_discrete( limits = c("P7", "N.S.", "P60")) +
+  scale_fill_manual(values = c("#bad2e1","#569ea4", "#52af45", "#f88a89", "#f06c45", "#fe870d", "#b294c7","#c7b699", "#b15928"))+
+  theme( panel.grid = element_blank()) +
+  scale_y_continuous(expand = c(0,0)) + 
+  coord_flip()
+zic_loci
+```
+```{r expr, fig.height=4, fig.width=4}
+zic_expr = gene_expr %>% 
+  dplyr::filter( SYMBOL %in% c("Zic1", "Zic2")) %>% 
+  pivot_longer(cols = starts_with("p")) %>% 
+  dplyr::mutate(time = str_extract(name, "[^\\_]+")) %>% 
+  ggplot(aes(x = time, y = value)) +
+  #scale_fill_manual(values = c("blue", "orange", "red"),limits = c("p7","p14", "p60") )+
+  scale_x_discrete( labels = c("P7", "P14", "P60"), limits = c("p7","p14", "p60")) +
+  scale_y_continuous(expand = c(0,0), lim = c(0, 50000))+
+  stat_summary(fun.data="mean_se",geom="errorbar", color = "black", size = .5, width = .5) +
+  stat_summary(fun="mean",geom="bar", fill = "black") +
+  facet_wrap(~SYMBOL, ncol = 5) +
+  labs(x = "Postnatal Day", y = "normalized counts")+
+  theme_bw() +
+  theme(
+        panel.grid = element_blank(),
+         legend.position = "none") 
+
+zic_expr
+```
+
+```{r, fig.height=8, fig.width=12}
+plot_grid(plot_grid(zic1d, zic3d , zic_expr, nrow = 3, rel_heights = c(.10, .45, .45), align = "r",scale = c(1, .9, 1), labels = c("A", "B", "C")),
+          plot_grid( plot_grid(zic_overlap, zic_motif, rel_widths = c( 1.5, 1.25), nrow = 1, labels = c( "D", "E")), zic_loci, nrow = 2, labels = c("","F")),
+          ncol =2,
+          rel_widths = c(.4, .6)
+)
+      
+
+```
+
