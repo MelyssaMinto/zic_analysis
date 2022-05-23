@@ -1,5 +1,437 @@
 ---
-title: "Figure 4"
+title: "Figure_invitro"
 output: html_notebook
 ---
 
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,warning = FALSE, error = FALSE,fig.align = "center")
+
+library(tidyverse)
+
+```
+
+# Direct target assignments focusing on in vitro data.
+
+Idea is to get the direct targets assignments using only in vitro data.
+
+# Read datasets
+
+```{r echo = FALSE,warning = FALSE,message = FALSE, error = FALSE}
+# Npeaks data
+knockdown_genes_zic1_npeaks <- read_tsv("../results/invitro/figure_invitro/knockdown_genes_zic1_npeaks.tsv")
+knockdown_genes_zic2_npeaks <- read_tsv("../results/invitro/figure_invitro/knockdown_genes_zic2_npeaks.tsv")
+
+knockdown_genes_zic1_npeaks_in_vitro <- read_tsv("../results/invitro/figure_invitro/knockdown_genes_zic1_npeaks_in_vitro.tsv")
+knockdown_genes_zic2_npeaks_in_vitro <- read_tsv("../results/invitro/figure_invitro/knockdown_genes_zic2_npeaks_in_vitro")
+
+knockdown_genes_zic1_npeaks_dir <- read_tsv("../results/invitro/figure_invitro/knockdown_genes_zic1_npeaks_dir.tsv")
+knockdown_genes_zic2_npeaks_dir <- read_tsv("../results/invitro/figure_invitro/knockdown_genes_zic2_npeaks_dir.tsv")
+
+knockdown_genes_zic1_npeaks_in_vitro_dir <- read_tsv("../results/invitro/figure_invitro/knockdown_genes_zic1_npeaks_in_vitro_dir.tsv")
+knockdown_genes_zic2_npeaks_in_vitro_dir <- read_tsv("../results/invitro/figure_invitro/knockdown_genes_zic2_npeaks_in_vitro_dir.tsv")
+
+knockdown_genes_zic1_npeaks_dir_zic_dependent <- read_tsv("../results/invitro/figure_invitro/knockdown_genes_zic1_npeaks_in_vitro_dir.tsv")
+knockdown_genes_zic2_npeaks_dir_zic_dependent <- read_tsv("../results/invitro/figure_invitro/knockdown_genes_zic2_npeaks_in_vitro_dir.tsv")
+
+
+# GO data
+zic1_comp_go <- readRDS("../results/invitro/figure_invitro/zic1_comp_go.Rds")
+zic2_comp_go <- readRDS("../results/invitro/figure_invitro/zic2_comp_go.Rds")
+
+```
+
+
+
+# Plots
+
+Zic1 log2FC vs number of in vivo peaks
+```{r}
+knockdown_genes_zic1_npeaks %>%
+  ggplot(aes(npeaks, zic1_log2FoldChange)) +
+  geom_point(color = "gray", alpha = 0.7, size = 1) +
+  theme_minimal() +
+  theme(aspect.ratio = 1) +
+  xlab("Number of mapped in vivo peaks") +
+  ylab("RNAseq log2(Zic1 KD / Ctrl)")
+
+
+```
+
+Zic2 log2FC vs number of in vivo peaks
+```{r}
+knockdown_genes_zic2_npeaks %>%
+  ggplot(aes(npeaks, zic2_log2FoldChange)) +
+  geom_point(color = "gray", alpha = 0.7, size = 1) +
+  theme_minimal() +
+  theme(aspect.ratio = 1) +
+  xlab("Number of mapped in vivo peaks") +
+  ylab("RNAseq log2(Zic1 KD / Ctrl)")
+
+
+```
+
+Zic1 log2FC vs number of in vitro peaks
+```{r}
+knockdown_genes_zic1_npeaks_in_vitro %>%
+  ggplot(aes(npeaks, zic1_log2FoldChange)) +
+  geom_point(color = "gray", alpha = 0.7, size = 1) +
+  theme_minimal() +
+  theme(aspect.ratio = 1) +
+  xlab("Number of mapped in vitro peaks") +
+  ylab("RNAseq log2(Zic1 KD / Ctrl)")
+
+
+```
+
+Zic2 log2FC vs number of in vitro peaks
+```{r}
+knockdown_genes_zic2_npeaks_in_vitro %>%
+  ggplot(aes(npeaks, zic2_log2FoldChange)) +
+  geom_point(color = "gray", alpha = 0.7, size = 1) +
+  theme_minimal() +
+  theme(aspect.ratio = 1) +
+  xlab("Number of mapped in vitro peaks") +
+  ylab("RNAseq log2(Zic1 KD / Ctrl)")
+
+
+```
+
+This is the plot using the rrho gene sets instead of padj < 0.05 cutoffs:
+
+Zic1 KD/Ctrl vs D7/D3 
+
+```{r}
+knockdown_genes_zic1_npeaks %>%
+  drop_na(contains("padj")) %>%
+  ggplot(aes( dev_log2FoldChange, zic1_log2FoldChange,
+             color = rrho_category != "ns")) +
+  geom_point( size = 1 , alpha = 0.5) +
+  scale_color_manual(values = c("FALSE"="gray",
+                                "TRUE"="blue")) +
+  theme_minimal() +
+  theme(aspect.ratio = 1, legend.position = "none") +
+  xlab("RNAseq log2(DIV7 / DIV3)") +
+  ylab("RNAseq log2(Zic1 KD / Ctrl)") 
+
+
+```
+
+Zic2 KD/Ctrl vs D7/D3 
+
+```{r}
+knockdown_genes_zic2_npeaks %>%
+  drop_na(contains("padj")) %>%
+  ggplot(aes( dev_log2FoldChange, zic2_log2FoldChange,
+             color = rrho_category != "ns")) +
+  geom_point( size = 1 , alpha = 0.5) +
+  scale_color_manual(values = c("FALSE"="gray",
+                                "TRUE"="blue")) +
+  theme_minimal() +
+  theme(aspect.ratio = 1, legend.position = "none") +
+  xlab("RNAseq log2(DIV7 / DIV3)") +
+  ylab("RNAseq log2(Zic2 KD / Ctrl)") 
+
+
+```
+
+
+Using padj < 0.05 cutoffs
+
+Zic1 KD/Ctrl vs D7/D3 
+
+```{r}
+knockdown_genes_zic1_npeaks %>%
+  drop_na(contains("padj")) %>%
+  ggplot(aes( dev_log2FoldChange, zic1_log2FoldChange,
+             color = zic1_padj < 0.05 & dev_padj < 0.05)) +
+  geom_point( size = 1 , alpha = 0.5) +
+  scale_color_manual(values = c("FALSE"="gray",
+                                "TRUE"="blue")) +
+  theme_minimal() +
+  theme(aspect.ratio = 1, legend.position = "none") +
+  xlab("RNAseq log2(DIV7 / DIV3)") +
+  ylab("RNAseq log2(Zic1 KD / Ctrl)") 
+
+
+```
+
+Zic2 KD/Ctrl vs D7/D3 
+
+```{r}
+knockdown_genes_zic2_npeaks %>%
+  drop_na(contains("padj")) %>%
+  ggplot(aes( dev_log2FoldChange, zic2_log2FoldChange,
+             color = zic2_padj < 0.05 & dev_padj < 0.05)) +
+  geom_point( size = 1 , alpha = 0.5) +
+  scale_color_manual(values = c("FALSE"="gray",
+                                "TRUE"="blue")) +
+  theme_minimal() +
+  theme(aspect.ratio = 1, legend.position = "none") +
+  xlab("RNAseq log2(DIV7 / DIV3)") +
+  ylab("RNAseq log2(Zic2 KD / Ctrl)") 
+
+
+```
+
+Showing only significant genes
+Zic1 KD/Ctrl vs D7/D3
+```{r}
+knockdown_genes_zic1_npeaks %>%
+  drop_na(contains("padj")) %>%
+  dplyr::filter(zic1_padj < 0.05 & dev_padj < 0.05) %>%
+  ggplot(aes( dev_log2FoldChange, zic1_log2FoldChange, label = zic1_gene_names)) +
+  geom_point( alpha = 0.5, color = "blue", size = 1) +
+  theme_minimal() +
+  theme(aspect.ratio = 1) +
+  xlab("RNAseq log2(DIV7 / DIV3)") +
+  ylab("RNAseq log2(Zic1 KD / Ctrl)") 
+
+```
+Zic2 KD/Ctrl vs D7/D3
+```{r}
+knockdown_genes_zic2_npeaks %>%
+  drop_na(contains("padj")) %>%
+  dplyr::filter(zic2_padj < 0.05 & dev_padj < 0.05) %>%
+  ggplot(aes( dev_log2FoldChange, zic2_log2FoldChange, label = zic2_gene_names)) +
+  geom_point( alpha = 0.5, color = "blue", size = 1) +
+  theme_minimal() +
+  theme(aspect.ratio = 1) +
+  xlab("RNAseq log2(DIV7 / DIV3)") +
+  ylab("RNAseq log2(Zic2 KD / Ctrl)") 
+
+```
+
+Adding in vivo n peaks
+
+Zic1 
+
+```{r}
+knockdown_genes_zic1_npeaks %>%
+  drop_na(contains("padj")) %>%
+  dplyr::filter(zic1_padj < 0.05 & dev_padj < 0.05) %>%
+  ggplot(aes( dev_log2FoldChange, zic1_log2FoldChange,size = npeaks, label = zic1_gene_names)) +
+  geom_point( alpha = 0.2, color = "blue") +
+  theme_minimal() +
+  theme(aspect.ratio = 1) +
+  xlab("RNAseq log2(DIV7 / DIV3)") +
+  ylab("RNAseq log2(Zic1 KD / Ctrl)") 
+
+```
+
+Zic2
+
+```{r}
+knockdown_genes_zic2_npeaks %>%
+  drop_na(contains("padj")) %>%
+  dplyr::filter(zic2_padj < 0.05 & dev_padj < 0.05) %>%
+  ggplot(aes( dev_log2FoldChange, zic2_log2FoldChange,size = npeaks, label = zic2_gene_names)) +
+  geom_point( alpha = 0.2, color = "blue") +
+  theme_minimal() +
+  theme(aspect.ratio = 1) +
+  xlab("RNAseq log2(DIV7 / DIV3)") +
+  ylab("RNAseq log2(Zic2 KD / Ctrl)") 
+
+```
+
+
+Adding in vitro n peaks
+
+Zic1 
+
+```{r}
+knockdown_genes_zic1_npeaks_in_vitro %>%
+  drop_na(contains("padj")) %>%
+  dplyr::filter(zic1_padj < 0.05 & dev_padj < 0.05) %>%
+  ggplot(aes( dev_log2FoldChange, zic1_log2FoldChange,size = npeaks, label = zic1_gene_names)) +
+  geom_point( alpha = 0.2, color = "blue") +
+  theme_minimal() +
+  theme(aspect.ratio = 1) +
+  xlab("RNAseq log2(DIV7 / DIV3)") +
+  ylab("RNAseq log2(Zic1 KD / Ctrl)") 
+
+```
+
+Zic2
+
+```{r}
+knockdown_genes_zic2_npeaks_in_vitro %>%
+  drop_na(contains("padj")) %>%
+  dplyr::filter(zic2_padj < 0.05 & dev_padj < 0.05) %>%
+  ggplot(aes( dev_log2FoldChange, zic2_log2FoldChange,size = npeaks, label = zic2_gene_names)) +
+  geom_point( alpha = 0.2, color = "blue") +
+  theme_minimal() +
+  theme(aspect.ratio = 1) +
+  xlab("RNAseq log2(DIV7 / DIV3)") +
+  ylab("RNAseq log2(Zic2 KD / Ctrl)") 
+
+```
+
+Filtered by significantly diff peaks and colored by direction of peaks
+in vivo
+```{r}
+knockdown_genes_zic1_npeaks_dir %>% 
+  drop_na(contains("padj")) %>%
+  dplyr::filter(zic1_padj < 0.05 & dev_padj < 0.05) %>%
+   dplyr::filter(zic_sig %in% c("DOWN","UP")) %>%
+  ggplot(aes( dev_log2FoldChange, zic1_log2FoldChange,
+              size = npeaks, label = zic1_gene_names, color = zic_sig)) +
+  geom_point(alpha = 0.6 ) +
+  theme_minimal() +
+  theme(aspect.ratio = 1)+
+  scale_color_manual(values = c("UP"="#D81B60","DOWN"="#1E88E5")) +
+  xlab("RNAseq log2(DIV7 / DIV3)") +
+  ylab("RNAseq log2(Zic1 KD / Ctrl)")  +
+  ggrepel::geom_text_repel(size = 1.7,max.overlaps = 10)
+
+
+```
+
+
+```{r}
+knockdown_genes_zic2_npeaks_dir %>%
+  drop_na(contains("padj")) %>%
+   dplyr::filter(zic2_padj < 0.05 & dev_padj < 0.05) %>%
+   dplyr::filter(zic_sig %in% c("DOWN","UP")) %>%
+  ggplot(aes( dev_log2FoldChange, zic2_log2FoldChange,
+              size = npeaks, label = zic2_gene_names, color = zic_sig)) +
+  geom_point(alpha = 0.6 ) +
+  theme_minimal() +
+  theme(aspect.ratio = 1)+
+  scale_color_manual(values = c("UP"="#D81B60","DOWN"="#1E88E5")) +
+  xlab("RNAseq log2(DIV7 / DIV3)") +
+  ylab("RNAseq log2(Zic2 KD / Ctrl)") 
+
+```
+
+Filtered by significantly diff peaks and colored by direction of peaks
+in vitro 
+```{r}
+knockdown_genes_zic1_npeaks_in_vitro_dir %>%
+  drop_na(contains("padj")) %>%
+   dplyr::filter(zic1_padj < 0.05 & dev_padj < 0.05) %>%
+   dplyr::filter(zic_sig %in% c("DOWN","UP")) %>%
+  ggplot(aes( dev_log2FoldChange, zic1_log2FoldChange,
+              size = npeaks_invitro, label = zic1_gene_names, color = zic_sig)) +
+  geom_point(alpha = 0.6 ) +
+  theme_minimal() +
+  theme(aspect.ratio = 1)+
+  scale_color_manual(values = c("UP"="#D81B60","DOWN"="#1E88E5")) +
+  xlab("RNAseq log2(DIV7 / DIV3)") +
+  ylab("RNAseq log2(Zic1 KD / Ctrl)") +
+  ggrepel::geom_text_repel(size = 1.7,max.overlaps = 10)
+
+```
+
+
+```{r}
+knockdown_genes_zic2_npeaks_in_vitro_dir %>%
+  drop_na(contains("padj")) %>%
+   dplyr::filter(zic2_padj < 0.05 & dev_padj < 0.05) %>%
+  ggplot(aes( dev_log2FoldChange, zic2_log2FoldChange,
+              size = npeaks_invitro, label = zic2_gene_names, color = zic_sig)) +
+  geom_point(alpha = 0.6 ) +
+  theme_minimal() +
+  theme(aspect.ratio = 1)+
+  ggrepel::geom_text_repel(size = 1.7,max.overlaps = 10) +
+  scale_color_manual(values = c("UP"="#D81B60","DOWN"="#1E88E5")) +
+  xlab("RNAseq log2(DIV7 / DIV3)") +
+  ylab("RNAseq log2(Zic2 KD / Ctrl)")  +
+  ggrepel::geom_text_repel(size = 1.7,max.overlaps = 10)
+
+```
+
+Per gene bar plots
+
+
+Zic1 
+```{r}
+
+knockdown_genes_zic1_npeaks_dir_zic_dependent %>%
+   dplyr::filter(diff_category == "dependent_d7") %>%
+  group_by(zic1_gene_names) %>%
+   dplyr::mutate(totals_npeaks = sum(npeaks)) %>%
+  ungroup() %>%
+   dplyr::filter(totals_npeaks > 1) %>%
+   dplyr::mutate(zic1_gene_names = fct_reorder(zic1_gene_names, totals_npeaks)) %>%
+   dplyr::select(zic1_gene_names, zic_sig, npeaks,npeaks_invitro) %>%
+  pivot_longer(cols = contains("npeaks"),values_to = "npeaks", names_to = "experiment") %>% 
+  ggplot(aes(npeaks, zic1_gene_names, fill = zic_sig)) +
+  geom_col(position = "stack") +
+  scale_fill_manual(values = c("UP"="#D81B60","DOWN"="#1E88E5","N.S." ="gray"))+
+  theme_classic() +
+  theme(aspect.ratio = 2) +
+  facet_wrap(~ experiment, scales = "free_x")
+
+knockdown_genes_zic1_npeaks_dir_zic_dependent %>%
+   dplyr::filter(diff_category == "dependent_d3") %>%
+  group_by(zic1_gene_names) %>%
+   dplyr::mutate(totals_npeaks = sum(npeaks)) %>%
+  ungroup() %>%
+   dplyr::filter(totals_npeaks > 1) %>%
+   dplyr::mutate(zic1_gene_names = fct_reorder(zic1_gene_names, totals_npeaks)) %>%
+   dplyr::select(zic1_gene_names, zic_sig, npeaks,npeaks_invitro) %>%
+  pivot_longer(cols = contains("npeaks"),values_to = "npeaks", names_to = "experiment") %>% 
+  ggplot(aes(npeaks, zic1_gene_names, fill = zic_sig)) +
+  geom_col(position = "stack") +
+  scale_fill_manual(values = c("UP"="#D81B60","DOWN"="#1E88E5","N.S." ="gray"))+
+  theme_classic() +
+  theme(aspect.ratio = 2) +
+  facet_wrap(~ experiment, scales = "free_x")
+
+```
+
+Zic2
+```{r}
+  
+knockdown_genes_zic2_npeaks_dir_zic_dependent %>%
+   dplyr::filter(diff_category == "dependent_d7") %>%
+  group_by(zic2_gene_names) %>%
+   dplyr::mutate(totals_npeaks = sum(npeaks)) %>%
+  ungroup() %>%
+   dplyr::filter(totals_npeaks > 1) %>%
+   dplyr::mutate(zic2_gene_names = fct_reorder(zic2_gene_names, totals_npeaks)) %>%
+   dplyr::select(zic2_gene_names, zic_sig, npeaks,npeaks_invitro) %>%
+  pivot_longer(cols = contains("npeaks"),values_to = "npeaks", names_to = "experiment") %>% 
+  ggplot(aes(npeaks, zic2_gene_names, fill = zic_sig)) +
+  geom_col(position = "stack") +
+  scale_fill_manual(values = c("UP"="#D81B60","DOWN"="#1E88E5","N.S." ="gray"))+
+  theme_classic() +
+  theme(aspect.ratio = 2) +
+  facet_wrap(~ experiment, scales = "free_x")
+
+knockdown_genes_zic2_npeaks_dir_zic_dependent%>%
+   dplyr::filter(diff_category == "dependent_d3") %>%
+  group_by(zic2_gene_names) %>%
+   dplyr::mutate(totals_npeaks = sum(npeaks)) %>%
+  ungroup() %>%
+   dplyr::filter(totals_npeaks > 1) %>%
+   dplyr::mutate(zic2_gene_names = fct_reorder(zic2_gene_names, totals_npeaks)) %>%
+   dplyr::select(zic2_gene_names, zic_sig, npeaks,npeaks_invitro) %>%
+  pivot_longer(cols = contains("npeaks"),values_to = "npeaks", names_to = "experiment") %>% 
+  ggplot(aes(npeaks, zic2_gene_names, fill = zic_sig)) +
+  geom_col(position = "stack") +
+  scale_fill_manual(values = c("UP"="#D81B60","DOWN"="#1E88E5","N.S." ="gray"))+
+  theme_classic() +
+  theme(aspect.ratio = 2) +
+  facet_wrap(~ experiment, scales = "free_x")
+
+```
+
+# Gene functions in these four categories
+
+GO plots
+
+Zic1
+```{r fig.width = 10, fig.height = 12}
+suppressPackageStartupMessages(library(clusterProfiler))
+dotplot(zic1_comp_go)
+
+```
+
+Zic2 
+```{r}
+dotplot(zic2_comp_go)
+
+```

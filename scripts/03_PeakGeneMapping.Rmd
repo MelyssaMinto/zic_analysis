@@ -29,10 +29,11 @@ library(ggridges)
 ```{r read data in}
 # Mapped peaks to genes via chromatin loops/links
 mapped_data = read_tsv("../results/FinalTables/mapped_data.txt")
-
+zic_loop_data = read_tsv("../results/FinalTables/zic_loop_data.txt")
 # gene expression data
-
 gene_expr = read_tsv("../results/DiffExp_RNA/normalized_counts.tsv")
+# zic peak data (differential)
+zic_peak_data <- read_delim("../results/FinalTables/zic_peak_data.txt", delim = "\t", escape_double = FALSE, trim_ws = TRUE)
 
 # Chromatin Links
 # > P56 PLAC-seq loops. source: https://www.nature.com/articles/s41586-019-1190-7
@@ -46,6 +47,8 @@ loop_data_young <- read_excel("/media/west-lab-share/Melyssa_Minto/Cerebellum/zi
   dplyr::mutate(loop_id = paste0("loop_", 1:n())) %>% 
   dplyr::mutate(X1 = ifelse(is.na(X1), "chrX", paste0("chr",X1)),
                 X4 = ifelse(is.na(X4), "chrX", paste0("chr",X4)))
+
+loop_annotation = read_tsv("../results/FinalTables/loop_data.txt")
 
 ```
 
@@ -192,9 +195,9 @@ sd1 = mapped_data %>%
   theme(plot.title = element_text(face = "bold"))
 
 
-png("../figures/supp_figure2.png", height = 4, width = 7, units = "in", res = 300)
+#png("../figures/supp_figure2.png", height = 4, width = 7, units = "in", res = 300)
 plot_grid(sa1,sb1, nrow = 1, labels = LETTERS[1:4])
-dev.off()
+#dev.off()
 
 ```
 
@@ -258,107 +261,69 @@ sd2 = n_peaks_to_gene %>%
   theme_classic() +
   labs(x = "Number of Zic Peaks", y = "Absolute Gene LFC")
 
-png("../figures/supp_figure3.png", height = 7, width = 10, units = "in", res = 300)
+#png("../figures/supp_figure3.png", height = 7, width = 10, units = "in", res = 300)
 plot_grid(sa2, 
           plot_grid(sb2, sc2,sd2, align = "v", ncol = 1, labels = c("B", "C", "D")),
           ncol = 2,
           nrow = 1,
           labels = c("A", ""),
           rel_widths = c(2, 1))
-dev.off()
+#dev.off()
 ```
 Supplemental Figure 3. A) Count of Zic peaks mapped to gene. B) Distribution of number of zic peaks by gene regulation.  Scatterplots of C) Mean expression and D) Log2FC of genes against Number of zic peaks show that there is no correlation between number of zic peaks and gene degree of gene regulation. 
 
 
-```{r}
-ratio_data = mapped_data %>% 
-  dplyr::filter( zic_sig %in% c("UP", "DOWN", "N.S.")) %>% 
-  dplyr::filter( gene_sig %in% c("UP", "DOWN", "N.S.")) %>% 
-  dplyr::select(starts_with(c("zic", "gene"))) %>% 
-  distinct() %>% 
-  group_by(gene_name) %>% 
-  add_count(zic_sig) %>% 
-  ungroup() %>% 
-  dplyr::select(gene_name, gene_sig, zic_sig, n) %>% 
-  distinct() %>% 
-  pivot_wider(id_cols = c("gene_name", "gene_sig"), values_from = "n", names_from="zic_sig", values_fill = 0) %>% 
-  dplyr::mutate(p7_p60_zic = ifelse(UP >=1 & DOWN>=1, T,F),
-                UP_ratio = UP/(UP+DOWN)) 
-  #dplyr::filter(p7_p60_zic == TRUE) 
-
-ks.ts <- ks.test(ratio_data$UP_ratio[ratio_data$gene_sig == "UP"], ratio_data$UP_ratio[ratio_data$gene_sig == "DOWN"], alternative = "two.sided")
-
-
-ratio_data %>% 
-  ggplot(aes(x = UP_ratio, color = gene_sig)) +
-  stat_ecdf()+
-  scale_color_manual(limits = c("DOWN", "UP", "N.S"), values = c("blue", "red", "black")) +
-  labs(x = "P60:P7 Peak Ratio", y = "CDF", color = "Gene\nExpression")+
-  theme_classic()
-
-table(ratio_data$p7_p60_zic)
-
-```
-
-```{r}
-
-# getting postional information for genes
-genes = mapped_data %>% 
-  dplyr::select(gene_name) %>% 
-  distinct() %>% 
-  pull(gene_name)
-
-id = mapIds(org.Mm.eg.db, keys =genes , column ="ENTREZID", keytype="SYMBOL")
-id = data.frame(GENEID = unlist(id), stringsAsFactors = F) %>% 
-   dplyr::mutate(gene_name = rownames(.))
-
-info = biomaRt::select(TxDb.Mmusculus.UCSC.mm10.knownGene, keys = id$GENEID  , columns=c("TXNAME", "TXSTART", "TXEND", "TXCHROM"), keytype="GENEID")
-
-gene_info = id %>% 
-  left_join(info) %>% 
-  group_by(gene_name) %>% 
-  slice(1) %>% 
-  ungroup()
-  
-
-
-
-# calculating distance between peaks and genes 
-zic_distance = mapped_data %>% 
-  dplyr::select(starts_with(c("zic", "gene"))) %>% 
-  distinct() %>% 
-  left_join(gene_info %>% dplyr::select(-TXNAME) %>%  distinct()) %>% 
-  dplyr::mutate(zic_chr = str_extract(zic_peak, "[^:]+"),
-                zic_start = str_extract(zic_peak, "(?<=:).+(?=-)"),
-                zic_end = str_extract(zic_peak, "\\b\\w+$"),
-                zic_center = as.numeric(zic_start) + (as.numeric(zic_start) - as.numeric(zic_end))/2,
-                distanceToTSS = abs(TXSTART - zic_center)) 
-
-
-zic_distance %>% 
-  dplyr::filter( zic_sig %in% c("UP", "DOWN", "N.S.")) %>% 
-  dplyr::filter( gene_sig %in% c("UP", "DOWN", "N.S.")) %>% 
-  ggplot(aes(x = distanceToTSS, color = gene_sig)) +
-  geom_density() +
- xlim(0,10000) +
-  theme_classic() +
-    scale_color_manual(limits = c("DOWN", "UP", "N.S"), values = c("blue", "red", "black"))
-  
-
-zic_distance %>% 
-  dplyr::filter( zic_sig %in% c("UP", "DOWN", "N.S.")) %>% 
-  dplyr::filter( gene_sig %in% c("UP", "DOWN", "N.S.")) %>% 
-  ggplot(aes(x = distanceToTSS, color = gene_sig)) +
-  stat_ecdf()+
-  theme_classic() +
-    scale_color_manual(limits = c("DOWN", "UP", "N.S"), values = c("blue", "red", "black"))+
-  facet_zoom(xlim = c(0,1000), ylim = c(0,0.10), horizontal = F)
-
-
-```
-
 
 # Figure 2
+```{r }
+gene_loop = loop_annotation %>% 
+  dplyr::select(id, proximal= anchor_name.x, distal = anchor_name.y, gene_name) %>% 
+  distinct() %>% 
+  group_by(gene_name, id) %>% 
+  dplyr::mutate(distal = ifelse(proximal %in% distal, NA, distal)) %>%
+  ungroup() %>% 
+  pivot_longer(cols = c("proximal", "distal"), values_to = "anchor_name", names_to = "anchor_type") %>% 
+  drop_na(anchor_name) 
+
+
+dist_prox = zic_loop_data %>% dplyr::rename(sequence_name = zic_peak) %>% 
+  full_join(zic_peak_data,na_matches = "never") %>%
+  left_join(gene_loop, by = c("id", "anchor_name"), na_matches = "never") %>% 
+  dplyr::select(anchor_name, loop_id = id, sequence_name, zic_PeakID, zic_sig, gene_name, anchor_type) %>% 
+  distinct() %>% 
+  group_by(loop_id) %>% 
+  dplyr::mutate(num_anchors = n_distinct(anchor_name)) %>% 
+  dplyr::filter(num_anchors > 1) %>%  
+  ungroup() %>% 
+  dplyr::select(-loop_id) %>% 
+  distinct() %>% 
+  group_by(gene_name, anchor_type, zic_sig) %>% 
+  summarise(count = n()) %>% 
+  ungroup() %>% 
+  group_by( gene_name, zic_sig) %>% 
+  dplyr::mutate(total = sum(count)) %>% 
+  ungroup() %>% 
+  group_by(gene_name, zic_sig) %>% 
+  dplyr::mutate(ratio = count / total) %>% 
+  ungroup() 
+  
+
+plot_zic_ratio <- function(genes){
+  dist_prox %>%   
+  dplyr::filter(gene_name %in% genes) %>% 
+  ggplot(aes(x = anchor_type, y = ratio, fill = zic_sig)) +
+  geom_col(position = position_dodge2(width = 0.9, preserve = "single")) + 
+  theme_bw() +
+  scale_fill_manual(values = c( "blue", "black","red"),labels = c("UP" = "P60", "N.S." = "Static","DOWN" = "P7")) +
+  facet_wrap(~gene_name) +
+  labs(x = "Anchor", y = "# of Peaks")
+}
+
+
+plot_zic_ratio(c("Chd7"))
+
+
+```
 
 ```{r schematic}
 sch <-  rasterGrob(readPNG("../figures/schematic.png"), interpolate = T)
@@ -644,28 +609,28 @@ p60_rna_bw <-  DataTrack(import.bw("../sequencing_data/preprocessed_data/RNA/p60
 # plot_track("Chd7", tracks,  expand_l = 10000, expand_r = 250000)
 
 
-png("../figures/fig2_d.png", units = "in", height = 6, width = 15, res = 300)
+png("../figures/fig3_d.png", units = "in", height = 6, width = 15, res = 300)
 plot_track("Nr4a3", tracks,  expand_l = 600000, expand_r = 5000, ylim = c(0,2))
 dev.off()
 
-d = rasterGrob(readPNG("../figures/fig2_d.png"))
+d = rasterGrob(readPNG("../figures/fig3_d.png"))
 
 ```
-![](../figures/fig2_d.png)
+![](../figures/fig3_d.png)
 ```{r figure 2, fig.height=15, fig.width=15}
 
 
-fig2 = plot_grid( plot_grid( sch,  plot_grid(b, a1, ncol = 1, labels = c("B", "C")), c, rel_widths = c(.5, .15, .35), nrow = 1,labels = c("A", "", "D")),
+fig3 = plot_grid( plot_grid( sch,  plot_grid(b, a1, ncol = 1, labels = c("B", "C")), c, rel_widths = c(.5, .15, .35), nrow = 1,labels = c("A", "", "D")),
            d,
            ncol = 1,
            labels = c( "","E" ),
            rel_heights = c(.50, .50)
            )
 
-png("../figures/figure2.png", height = 12, width = 12, res = 300, units = "in")
-fig2
+png("../figures/figure3.png", height = 12, width = 12, res = 300, units = "in")
+fig3
 dev.off()
 
-fig2
+fig3
 ```
 Figure 2. Zic peaks were mapped to genes via H4Kme3 mediated chromatin loops. A) Overall number of genes mapped to Zic peaks that are enriched at P7, P60, and Statically bound. B) Mean expression of genes at P7 and P60 mapped to P7 and P60 enriched Zic peaks. C) Number of Zic peaks mapped to genes that are differentially expressed between P7 and P60. D) Example tracks of H4Kme3 loops, Zic, DHS, H3k27ac, and Gene expression at P7 and P60

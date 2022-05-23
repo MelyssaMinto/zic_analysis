@@ -105,7 +105,7 @@ annot = as.data.frame(annotatePeak(makeGRangesFromDataFrame(df = loops), TxDb = 
   distinct() %>% 
   # selecting the nearest gene to anchor mapping for each loop
   group_by(id) %>% 
-  slice_min(abs(distanceToTSS))  %>% 
+  slice_min(abs(distanceToTSS))  %>% head()
   # adding back full list of anchors was not selected as having the closest gene mapping
   full_join(loops %>% dplyr::select(id, anchor_name), by = "id") %>% 
   distinct() %>% 
@@ -199,6 +199,8 @@ mapped_data_table = mapped_data %>%
 
 write_tsv(mapped_data, "../../results/FinalTables/mapped_data.txt")
 write_tsv(mapped_data_table, "../../results/FinalTables/mapped_data_table.txt")
+write_tsv(zic_data %>% dplyr::select(anchor_name, id, zic_peak, zic_sig), "../../results/FinalTables/zic_loop_data.txt")
+write_tsv(annot, "../../results/FinalTables/loop_data.txt")
 
 # Output peak sets --------------------------------------------------------
 output_peak_set("UP", "UP") %>% 

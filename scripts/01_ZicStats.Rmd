@@ -13,25 +13,95 @@ library(gridExtra)
 library(ChIPseeker)
 library(TxDb.Mmusculus.UCSC.mm10.knownGene)
 library(cowplot)
+library(ggmosaic)
+library(pheatmap)
+library(ggseqlogo)
+library(BSgenome.Mmusculus.UCSC.mm10)
 ```
 
 ```{r}
-zic_peak_data <- read_delim("/media/west-lab-share/Melyssa_Minto/Cerebellum/zic_analysis/results/FinalTables/zic_peak_data.txt", delim = "\t", escape_double = FALSE, trim_ws = TRUE)
+zic_peak_data <- read_delim("../results/FinalTables/zic_peak_data.txt", delim = "\t", escape_double = FALSE, trim_ws = TRUE)
 gene_expr = read_tsv("../results/DiffExp_RNA/normalized_counts.tsv")
+zic_anno_dat =  read_tsv("../results/FinalTables/zic_annotations.txt")
 
 
 ```
-```{r zic3d}
-zic3d = rasterGrob(readPNG("../figures/Zic1_2_3D.png"))
+```{r}
+
+P60vP7_zic = zic_peak_data %>% 
+  dplyr::select(starts_with("zic")) %>% 
+  distinct() %>% 
+  dplyr::rename_with( ~ gsub( "zic_","", .x)) 
+
+sa1 = P60vP7_zic %>% 
+  dplyr::mutate(size = End - Start) %>% 
+  ggplot(aes(x = size) )+ 
+  geom_histogram(fill = "white", color = "black", bins = 50) +
+  theme_classic() +
+  labs(x = "Size of Zic Peaks")
+
+
+sa2 = P60vP7_zic %>% 
+  ggplot(aes(x = p7_mean)) +
+  geom_histogram(fill = "white", color = "black", bins = 1000) +
+  facet_zoom(xlim = c(0, 1000)) +
+  theme_classic() +
+  labs(x = "Mean signal of Peaks at P7")
+
+sa3 =P60vP7_zic %>% 
+  ggplot(aes(x = p60_mean)) +
+  geom_histogram(fill = "white", color = "black", bins = 1000) +
+  facet_zoom(xlim = c(0, 1000)) +
+  theme_classic() +
+  labs(x = "Mean signal of Peaks at P60")
+
+
+
+
+
+
+
+s1 =plot_grid(sa1, sa2, sa3, labels = c("A", "B", "C"), nrow = 1, rel_widths = c(1,2,2))
+#png("../figures/supp_figure1.png", height = 7, width = 8, units = "in", res = 300)
+s1
+#dev.off()
 ```
-![](../figures/Zic1_2_3D.png)
 
-```{r zic1d}
-zic1d = rasterGrob(readPNG("../figures/Zic1_2_1D.png"))
+A) Distribution of Zic peak size. Average ChIP signal of peaks at B) P7 and C) P60. D) MA plot of Zic-ChIP peaks P7 v P60. E) Number of peaks whose mean ChIP signal is 0 at P7 or P60  F,G) The number of TF families enriched at P7 and P60 
 
+
+
+
+```{r zicMA}
+nums = table(P60vP7_zic$sig)
+zic_ma = P60vP7_zic %>% 
+  dplyr::filter(sig != "filtered") %>% 
+  ggplot(aes(x = log10(baseMean), y = log2FoldChange, color = sig))+
+  geom_point(size = 0.5, alpha = 0.5) +
+  scale_color_manual(values= c("blue", "black", "red")) +
+  geom_text(x = 3.5, y = 5, label = paste0("Increased Zic Binding\n n = ",nums["UP"] ), color = "red")+
+  geom_text(x = 3.5, y = -6, label = paste0("Decreased Zic Binding\n n = ",nums["DOWN"] ), color = "blue")+
+  theme_classic() + 
+  xlim(c(.7, 4.7))+
+  labs( x = "log10(Avg Zic ChIP  Signal)", y = "Log2FC")+
+  theme(legend.position = "none") 
+
+zic_ma
 ```
 
-![](../figures/Zic1_2_1D.png)
+```{r}
+low_exp = 0
+lossGain = P60vP7_zic %>% 
+  dplyr::filter(p7_mean <= low_exp | p60_mean <= low_exp) %>% 
+  dplyr::filter(sig %in% c("UP", "DOWN")) %>% 
+  ggplot(aes(x = sig), width = 5)+
+  geom_bar(fill = "white", color = "black") +
+  theme_classic() +
+  scale_x_discrete(limits = c("DOWN", "UP"), labels = c("Complete\nLoss", "Complete\nGain"))+
+  labs(y = "# Peaks Mean \nSignal = 0 at P7 or P60", x ="Differential Zic Region")
+lossGain
+```
+
 
 ```{r peak overlap, fig.height=4, fig.width=6}
 
@@ -50,10 +120,10 @@ zic_overlap = zic_peak_data %>%
   ggplot(aes(y = zic_sig, fill = value))+
   geom_bar() +
   coord_flip() +
-  scale_y_discrete(limits = c("DOWN", "N.S.", "UP"), labels = c("P7", "N.S.", "P60")) +
+  scale_y_discrete(limits = c("DOWN", "N.S.", "UP"), labels = c("P7", "Static", "P60")) +
   scale_fill_manual(values = c("grey", "black"))+
   facet_wrap(~name, labeller = labeller(name = facet_labs)) +
-  labs( y = "Zic ChIP Enrichment", x = "# of Peaks", fill = "Overlap") +
+  labs( y = "Differential Zic Region", x = "# of Peaks", fill = "Overlap") +
   theme_bw()+
   theme( panel.grid = element_blank())+
   scale_x_continuous(expand = c(0,0))
@@ -65,50 +135,204 @@ zic_overlap
 
 
 ```{r motif, fig.height=4, fig.width=6}
-zic_motif = zic_peak_data %>% 
+zic_peak_data %>% 
   dplyr::filter(!(sequence_name == "no zic peak")) %>% 
-  dplyr::rename(zic_sig = zic_zic_sig) %>% 
-  dplyr::select(sequence_name, zic_sig, motif_id, n_motifs_in_peak ) %>% 
+  dplyr::select(sequence_name, zic_sig, motif_id,motif_name, n_motifs_in_peak ) %>% 
   distinct() %>% 
   dplyr::filter(!(zic_sig == "filtered")) %>% 
-  group_by(zic_sig) %>% 
-  dplyr::count(motif_id) %>%
+  group_by(sequence_name) %>% 
+  dplyr::mutate(unique_types = n_distinct(motif_id)) %>% 
   ungroup() %>% 
-  ggplot(aes(x = zic_sig, y = n, fill = motif_id)) +
-  geom_bar(stat = "identity" )+
-  labs( x = "Zic ChIP Enrichment", y = "# of Peaks", fill = "Motif") +
-  scale_fill_manual(values = c("#143589", "#E1BE6A", "#40B0A6"), labels = c("No Zic Motif", "Zic1 Motif", "Zic2 Motif"), limits = c("no motif", "ZIC1_MOUSE.H11MO.0.B","ZIC2_MOUSE.H11MO.0.C"))+
-  scale_x_discrete(limits = c("DOWN", "N.S.", "UP"), labels = c("P7", "N.S.", "P60"))+
+  dplyr::mutate(motifs = case_when( unique_types == 1 & motif_id == "no motif" ~ "No Zic Motif",
+                                    unique_types == 1 & motif_id == "ZIC1_MOUSE.H11MO.0.B" ~ "Zic1 Only",
+                                    unique_types == 1 & motif_id == "ZIC2_MOUSE.H11MO.0.C" ~ "Zic2 Only",
+                                    unique_types == 2 ~ "Zic1 and Zic2")) %>% 
+  dplyr::select(sequence_name, zic_sig, motifs) %>% 
+  distinct() %>% 
+  ggplot(aes(y = zic_sig,  fill = motifs)) +
+  geom_bar( position = "fill") +
+  coord_flip()+
+  labs( y = "Differential Zic Region", x = "# of Peaks", fill = "Motif") +
+  scale_fill_manual(values = c("#143589", "#E1BE6A", "#40B0A6", "Black"), limits = c("Zic1 Only", "Zic2 Only", "Zic1 and Zic2", "No Zic1/2 Motif")) +
+  scale_y_discrete(limits = c("DOWN", "N.S.", "UP"), labels = c("P7", "Static", "P60"))+
   theme_bw() +
-  theme( panel.grid = element_blank())+
-  scale_y_continuous(expand = c(0,0))
+  theme( panel.grid = element_blank())
 
 
 
-zic_motif
+
+
+zic_peak_data %>% 
+  dplyr::filter(!(sequence_name == "no zic peak")) %>% 
+  dplyr::select(sequence_name, zic_sig, motif_id,motif_name, n_motifs_in_peak ) %>% 
+  distinct() %>% 
+  dplyr::filter(!(zic_sig == "filtered")) %>% 
+   ggplot(aes(y = zic_sig,  fill = motif_id)) +
+  geom_bar( position = "fill") +
+  coord_flip()+
+  labs( y = "Differential Zic Region", x = "# of Peaks", fill = "Motif") +
+  scale_fill_manual(values = c("#143589", "#E1BE6A",  "Black"), limits = c("ZIC1_MOUSE.H11MO.0.B", "ZIC2_MOUSE.H11MO.0.C", "no motif"),labels = c("Zic1", "Zic2", "No Zic1/2 Motif")) +
+  scale_y_discrete(limits = c("DOWN", "N.S.", "UP"), labels = c("P7", "Static", "P60"))+
+  theme_bw() +
+  theme( panel.grid = element_blank())
+
+
+```
+```{r, fig.height= 3, fig.width=15}
+seqs= zic_peak_data %>% 
+  dplyr::select(sequence_name, zic_sig, motif_id, matched_sequence, zic_Chr, zic_Start, zic_End) %>% 
+  distinct() %>% 
+  dplyr::mutate( width = (zic_End - zic_Start), 
+                 mid = zic_Start + (width/2),
+                 left = mid - 10, 
+                 right = mid + 10) %>% 
+  drop_na(matched_sequence) %>% 
+  dplyr::mutate(mid_peak_seq = as.data.frame(Biostrings::getSeq(BSgenome.Mmusculus.UCSC.mm10, zic_Chr, left, right))$x) 
+
+
+
+
+# plotting matched sequences
+seqs_down = seqs %>% 
+  dplyr::filter(zic_sig == "DOWN") %>%
+  pull(matched_sequence)
+
+seqs_up = seqs %>% 
+  dplyr::filter(zic_sig == "UP") %>%
+  pull(matched_sequence)
+
+seqs_ns = seqs %>% 
+  dplyr::filter(zic_sig == "N.S.") %>%
+  pull(matched_sequence)
+
+
+logo_down = ggseqlogo(Biostrings::consensusMatrix(seqs_down),  method = 'bits', seq_type='dna')
+logo_up = ggseqlogo(Biostrings::consensusMatrix(seqs_up),  method = 'bits', seq_type='dna')
+logo_ns = ggseqlogo(Biostrings::consensusMatrix(seqs_ns),  method = 'bits', seq_type='dna')
+
+plot_grid(logo_down, logo_ns, logo_up, nrow = 1, labels = c("Early", "Static", "Late"), hjust = -4)
+
+# plotting matched sequences by Zic1/2
+seqs_down_1 = seqs %>% 
+  dplyr::filter(zic_sig == "DOWN", motif_id == "ZIC1_MOUSE.H11MO.0.B") %>%
+  pull(matched_sequence)
+
+seqs_down_2 = seqs %>% 
+  dplyr::filter(zic_sig == "DOWN", motif_id == "ZIC2_MOUSE.H11MO.0.C") %>%
+  pull(matched_sequence)
+
+seqs_up_1 = seqs %>% 
+  dplyr::filter(zic_sig == "UP", motif_id == "ZIC1_MOUSE.H11MO.0.B") %>%
+  pull(matched_sequence)
+
+seqs_up_2 = seqs %>% 
+  dplyr::filter(zic_sig == "UP", motif_id == "ZIC2_MOUSE.H11MO.0.C") %>%
+  pull(matched_sequence)
+
+seqs_ns_1 = seqs %>% 
+  dplyr::filter(zic_sig == "N.S.", motif_id == "ZIC1_MOUSE.H11MO.0.B") %>%
+  pull(matched_sequence)
+seqs_ns_2 = seqs %>% 
+  dplyr::filter(zic_sig == "N.S.", motif_id == "ZIC2_MOUSE.H11MO.0.C") %>%
+  pull(matched_sequence)
+
+
+logo_down1 = ggseqlogo(Biostrings::consensusMatrix(seqs_down_1),  method = 'bits', seq_type='dna')
+logo_up1 = ggseqlogo(Biostrings::consensusMatrix(seqs_up_1),  method = 'bits', seq_type='dna')
+logo_ns1 = ggseqlogo(Biostrings::consensusMatrix(seqs_ns_1),  method = 'bits', seq_type='dna')
+logo_down2 = ggseqlogo(Biostrings::consensusMatrix(seqs_down_2),  method = 'bits', seq_type='dna')
+logo_up2 = ggseqlogo(Biostrings::consensusMatrix(seqs_up_2),  method = 'bits', seq_type='dna')
+logo_ns2 = ggseqlogo(Biostrings::consensusMatrix(seqs_ns_2),  method = 'bits', seq_type='dna')
+
+
+plot_grid(
+  plot_grid(logo_down1, logo_ns1, logo_up1, nrow = 1, labels = c("Early", "Static", "Late"), hjust = -1.5),
+  plot_grid(logo_down2, logo_ns2, logo_up2, nrow = 1),
+  labels = c("Zic1", "Zic2"),
+  ncol = 1
+)
+
+
+# plotting middle of sequence
+seqs_down = seqs %>% 
+  dplyr::select(sequence_name, zic_sig, mid_peak_seq) %>% 
+  distinct() %>% 
+  dplyr::filter(zic_sig == "DOWN") %>%
+  pull(mid_peak_seq)
+
+seqs_up = seqs %>% 
+  dplyr::select(sequence_name, zic_sig, mid_peak_seq) %>% 
+  distinct() %>% 
+  dplyr::filter(zic_sig == "UP") %>%
+  pull(mid_peak_seq)
+
+seqs_ns = seqs %>% 
+  dplyr::select(sequence_name, zic_sig, mid_peak_seq) %>% 
+  distinct() %>% 
+  dplyr::filter(zic_sig == "N.S.") %>%
+  pull(mid_peak_seq)
+
+
+logo_down = ggseqlogo(Biostrings::consensusMatrix(seqs_down),  method = 'bits', seq_type='dna')
+logo_up = ggseqlogo(Biostrings::consensusMatrix(seqs_up),  method = 'bits', seq_type='dna')
+logo_ns = ggseqlogo(Biostrings::consensusMatrix(seqs_ns),  method = 'bits', seq_type='dna')
+
+plot_grid(logo_down, logo_ns, logo_up, nrow = 1, labels = c("Early", "Static", "Late"), hjust = -4)
+
+
+# plot zic1 and zic2 motif
+
+zic1s = seqs %>% 
+   dplyr::select(sequence_name, motif_id, matched_sequence) %>% 
+  dplyr::filter( motif_id == "ZIC1_MOUSE.H11MO.0.B") %>%
+  distinct() %>% 
+  pull(matched_sequence)
+
+zic2s = seqs %>% 
+   dplyr::select(sequence_name, motif_id, matched_sequence) %>% 
+  dplyr::filter( motif_id == "ZIC2_MOUSE.H11MO.0.C") %>%
+  distinct() %>% 
+  pull(matched_sequence)
+
+zic1_logo = ggseqlogo(Biostrings::consensusMatrix(zic1s),  method = 'bits', seq_type='dna')
+zic2_logo = ggseqlogo(Biostrings::consensusMatrix(zic2s),  method = 'bits', seq_type='dna')
+
+plot_grid(zic1_logo, zic2_logo, nrow = 1, labels = c("Zic1", "Zic2"), hjust = -2)
+
+
 ```
 
-
 ```{r loci, fig.height=4, fig.width=6}
-sample_files = c("../results/DiffExp_ZicChIP/P60vP7_DOWN.bed", "../results/DiffExp_ZicChIP/P60vP7_NS.bed", "../results/DiffExp_ZicChIP/P60vP7_UP.bed")
-sample_files <- as.list(sample_files)
-names(sample_files) <- c("P7", "N.S.", "P60")
-
-zic_anno = lapply(sample_files, annotatePeak, TxDb=TxDb.Mmusculus.UCSC.mm10.knownGene, tssRegion=c(-1000, 1000), verbose=FALSE)
-
-zic_anno_dat = bind_rows(list( P7 = zic_anno$P7@annoStat, N.S. = zic_anno$N.S.@annoStat, P60 = zic_anno$P60@annoStat), .id = "id")
 
 zic_loci = zic_anno_dat %>% 
+  dplyr::mutate(Feature = fct_relevel(Feature, unique(Feature))) %>% 
   ggplot(aes(x = id, y = Frequency, fill = Feature))+
   geom_col() +
-  labs(y = "Percentage(%)", x = "Zic ChIP Enrichment") +
+  labs(y = "Percentage(%)", x = "Differential Zic Region") +
   theme_bw() +
   scale_x_discrete( limits = c("P7", "N.S.", "P60")) +
   scale_fill_manual(values = c("#bad2e1","#569ea4", "#52af45", "#f88a89", "#f06c45", "#fe870d", "#b294c7","#c7b699", "#b15928"))+
   theme( panel.grid = element_blank()) +
   scale_y_continuous(expand = c(0,0)) + 
   coord_flip()
+
+zic_loci2 = zic_anno_dat %>% 
+  dplyr::mutate(Feature2 = case_when( Feature %in% "Promoter" ~ "Promoter",
+                                      Feature %in% c("Downstream (<=300)", "Distal Intergenic") ~ "Distal",
+                                      TRUE ~ "Gene Body"),
+                Feature2 = fct_relevel(Feature2, c("Promoter", "Gene Body", "Distal"))) %>% 
+  ggplot(aes(x = id, y = Frequency, fill = Feature2))+
+  geom_col() +
+  labs(y = "Percentage(%)", x = "Differential Zic Region") +
+  theme_bw() +
+  scale_x_discrete( limits = c("P7", "N.S.", "P60")) +
+  scale_fill_manual(values = c("#bad2e1","grey", "#b15928"))+
+  theme( panel.grid = element_blank()) +
+  scale_y_continuous(expand = c(0,0)) + 
+  coord_flip()
+
 zic_loci
+zic_loci2
 ```
 ```{r expr, fig.height=4, fig.width=4}
 zic_expr = gene_expr %>% 
@@ -131,13 +355,64 @@ zic_expr = gene_expr %>%
 zic_expr
 ```
 
-```{r, fig.height=8, fig.width=12}
-plot_grid(plot_grid(zic1d, zic3d , zic_expr, nrow = 3, rel_heights = c(.10, .45, .45), align = "r",scale = c(1, .9, 1), labels = c("A", "B", "C")),
-          plot_grid( plot_grid(zic_overlap, zic_motif, rel_widths = c( 1.5, 1.25), nrow = 1, labels = c( "D", "E")), zic_loci, nrow = 2, labels = c("","F")),
-          ncol =2,
-          rel_widths = c(.4, .6)
-)
-      
 
+```{r}
+
+
+ov1 = zic_peak_data %>% 
+  dplyr::rename(zic_sig = zic_zic_sig) %>% 
+  dplyr::select(sequence_name, k27ac_sequence_name, dnase_sequence_name, ends_with("sig")) %>% 
+  distinct() %>% 
+  dplyr::filter(!(sequence_name == "no zic peak")) %>% 
+  dplyr::filter(!(zic_sig == "filtered")) %>% 
+  dplyr::mutate(k27ac_overlap = ifelse(k27ac_sequence_name !="no overlap" & k27ac_sig %in% c(zic_sig, "N.S.") , 'yes', 'no'),
+                dnase_overlap = ifelse(dnase_sequence_name !="no overlap" & dnase_sig  %in% c(zic_sig, "N.S.") , 'yes', 'no')) %>%  
+  ggplot(aes(y = dnase_overlap, fill = k27ac_overlap))+
+  geom_bar() +
+  coord_flip() +
+ # facet_wrap(~zic_sig, labeller = labeller(zic_sig = f_labs))+
+  scale_fill_manual(values = c("grey", "black"))+
+  labs( y = "DNase Overlap", x = "# of Peaks", fill = "K27ac Overlap") +
+  theme_bw()+
+  theme( panel.grid = element_blank())+
+  scale_x_continuous(expand = c(0,0))
+
+ov2= zic_peak_data %>% 
+  dplyr::rename(zic_sig = zic_zic_sig) %>% 
+  dplyr::select(sequence_name, k27ac_sequence_name, dnase_sequence_name, ends_with("sig")) %>% 
+  distinct() %>% 
+  dplyr::filter(!(sequence_name == "no zic peak")) %>% 
+  dplyr::filter(!(zic_sig == "filtered")) %>% 
+  dplyr::mutate(k27ac_overlap = ifelse(k27ac_sequence_name !="no overlap" & k27ac_sig %in% c(zic_sig, "N.S.") , 'yes', 'no'),
+                dnase_overlap = ifelse(dnase_sequence_name !="no overlap" & dnase_sig  %in% c(zic_sig, "N.S.") , 'yes', 'no')) %>%  
+  ggplot(aes(y = k27ac_overlap, fill = dnase_overlap))+
+  geom_bar() +
+  coord_flip() +
+ # facet_wrap(~zic_sig, labeller = labeller(zic_sig = f_labs))+
+  scale_fill_manual(values = c("grey", "black"))+
+  labs( y = "K27ac Overlap", x = "# of Peaks", fill = "DNase Overlap") +
+  theme_bw()+
+  theme( panel.grid = element_blank())+
+  scale_x_continuous(expand = c(0,0))
+
+plot_grid(ov1, ov2)
+
+```
+
+```{r, fig.height=8, fig.width=15}
+
+
+
+fig1 = plot_grid(
+  plot_grid(zic_ma, lossGain, zic_expr, zic_overlap, rel_widths = c(.4, .1, .2, .3), nrow = 1, labels = c("A","B", "C", "D")),
+  plot_grid(ov2, zic_motif,zic_loci ,rel_widths = c( 1,1.25, 2), nrow = 1, labels = c( "E", "F", "G")),
+          ncol =1
+)
+
+png("../figures/figure1.png", height = 6, width = 12, units = "in", res = 300)
+fig1
+dev.off()
+
+fig1
 ```
 

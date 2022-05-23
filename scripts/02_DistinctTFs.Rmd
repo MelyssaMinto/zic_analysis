@@ -231,11 +231,102 @@ plot_pathways <-function(data, cond1, cond2, gene_expr_level){
 
 }
 
+plot_overlap <-function(peakset, overlap, name){
 
+  
+  # prepping data for join
+  peakset = peakset %>% 
+    dplyr::mutate(peak_name = paste0(X1, ":", X2,"-", X3)) %>% 
+    dplyr::select(peak_name) %>% 
+    distinct() %>% 
+    ungroup()
+  
+  overlap = overlap %>% 
+      dplyr::mutate(zic_name = paste0(X1, ":", X2,"-", X3),
+                    peak_name = paste0(X4, ":", X5,"-", X6)) %>% 
+    dplyr::select(peak_name, zic_name) %>% 
+    distinct() %>% 
+    ungroup()
+  
+  zic_peakset = P60vP7_zic %>% 
+    dplyr::mutate(zic_name = paste0(Chr, ":", Start,"-", End)) %>% 
+    dplyr::select(zic_name, zic_sig) %>% 
+    distinct() %>% 
+    ungroup()
+  
+  # join data
+  data =  zic_peakset %>% 
+    full_join(overlap) %>% 
+    full_join(peakset, by = "peak_name") %>% 
+    distinct() %>% 
+    ungroup()
+  
+
+  # plot 
+  p1 = data %>% 
+    drop_na(peak_name) %>% 
+    distinct()  %>% 
+    dplyr::mutate(overlap = ifelse(!is.na(zic_name) , "yes", "no"),
+                  fill_o = ifelse(overlap == "yes", zic_sig, "no"), 
+                  fill_o = fct_relevel(fill_o, c("no","DOWN", "N.S.", "UP")), 
+                  peak = paste0(name, " Peak")) %>% 
+    ggplot(aes(y = peak, fill = fill_o)) +
+    geom_bar(position = "fill") +
+    coord_flip() +
+    scale_fill_manual(limits = c("DOWN", "UP", "N.S.", "no"), labels = c("P7", "P60", "Static", "No \nOverlap"),values = c("blue", "red", "black", "grey")) +
+    theme_classic() +
+    labs(y = "", x = "Prop. Overlap", fill = "Zic Peak") +
+   theme(legend.key.size = unit(.3, 'cm'))
+
+  
+
+  # compare proportion of overlap between Differential Zic Regions
+  results = data %>% 
+    drop_na(zic_name) %>% 
+    distinct()  %>% 
+    dplyr::mutate(overlap = ifelse(!is.na(peak_name) , "yes", "no")) %>% 
+    group_by(zic_sig) %>% 
+    dplyr::count(overlap) %>% 
+    ungroup() %>% 
+    dplyr::filter(zic_sig != "filtered") %>% 
+    spread(key = zic_sig, value = n) %>% 
+    column_to_rownames( var = "overlap") %>% 
+    chisq_test()
+
+  
+  p2 = data %>% 
+    drop_na(zic_name) %>% 
+    distinct()  %>% 
+    dplyr::mutate(overlap = ifelse(!is.na(peak_name) , "yes", "no")) %>% 
+    group_by(zic_sig) %>% 
+    dplyr::count(overlap) %>% 
+    ungroup() %>% 
+    dplyr::filter(zic_sig != "filtered") %>% 
+    ggplot(aes(x = zic_sig, y = n, fill = overlap)) +
+    geom_bar(position = "fill", stat = "identity") +
+    scale_x_discrete(limits = c("DOWN",  "N.S.", "UP"), labels = c("P7", "Static", "P60")) +
+    scale_fill_manual(values = c("black", "grey")) +
+    theme_classic() +
+    #geom_signif(tip_length = 0, annotation = results$p.signif, xmin = 0.8, xmax = 3.2, y_position = 1.01 , color = "black")+
+    labs(x = "Differential Zic Regions", y= "Prop. Overlap", fill = paste0("Overlap w/\n", name))  +
+   theme(legend.key.size = unit(.3, 'cm'))
+
+  return(list(plot1 = p1, plot2 = p2))
+    
+
+}
+
+
+make_track <- function(peaks, name){
+  AnnotationTrack(GRanges(seqnames = peaks$X1, ranges = IRanges(start = peaks$X2, end = peaks$X3)),
+                                  genome = "mm10", name = name, col.title = "white", col.border.title = "black",fill = "black")
+}
 
 ```
 
 ```{r read in data}
+
+# Homer results
 activ_homer = read_tsv("../results/homer_results/activating/homer_results.tsv")
 repr_homer = read_tsv("../results/homer_results/repressive/homer_results.tsv")
 early_activ_homer = read_tsv("../results/homer_results/P7_peaks_DOWNGenes/homer_results.tsv")
@@ -247,6 +338,7 @@ late_homer = read_tsv("../results/homer_results/late/homer_results.tsv")
 early_all_homer = read_tsv("../results/homer_results/P60_peaks_DOWNGenes/homer_results.tsv")
 late_all_homer = read_tsv("../results/homer_results/P60_peaks_UpGenes//homer_results.tsv")
 
+# Motif Enrichment Comparisons
 earlyVlate_act_hom = read_tsv("../results/peak_gene/rrho/early_late_activating_homer.txt")
 early_actVrep_hom = read_tsv("../results/peak_gene/rrho/early_activating_repressive_homer.txt")
 earlyVlate_rep_hom = read_tsv("../results/peak_gene/rrho/early_late_repressive_homer.txt")
@@ -257,7 +349,7 @@ early_allVloop_hom = read_tsv("../results/peak_gene/rrho/early_allvloop_homer.tx
 late_allVloop_hom = read_tsv("../results/peak_gene/rrho/late_allvloop_homer.txt")
 earlyvlate_all_hom = read_tsv("../results/peak_gene/rrho/earlyvlate_all_homer.txt")
 
-
+# BART resutls
 activ_bart = read_tsv("../results/peak_gene/activating/bart_results.txt")
 repr_bart = read_tsv("../results/peak_gene/repressive/bart_results.txt")
 early_activ_bart = read_tsv("../results/peak_gene/early_activating/bart_results.txt")
@@ -269,6 +361,7 @@ late_bart = read_tsv("../results/peak_gene/late/bart_results.txt")
 early_all_bart = read_tsv("../results/DiffExp_ZicChIP/early/bart_results.txt")
 late_all_bart = read_tsv("../results/DiffExp_ZicChIP/late/bart_results.txt")
 
+# ChIP Enrichment Comparisons
 earlyVlate_act = read_tsv("../results/peak_gene/rrho/early_late_activating.txt")
 early_actVrep = read_tsv("../results/peak_gene/rrho/early_activating_repressive.txt")
 earlyVlate_rep = read_tsv("../results/peak_gene/rrho/early_late_repressive.txt")
@@ -281,18 +374,183 @@ late_allVloop = read_tsv("../results/peak_gene/rrho/late_allvloop.txt")
 earlyvlate_all = read_tsv("../results/peak_gene/rrho/earlyvlate_all.txt")
 
 
-atoh1_zic_overlap_p7 = read_tsv("../results/mergedPeaks/zic_atoh1_p7.bed", col_names = F) 
-atoh1_zic_overlap_p60 = read_tsv("../results/mergedPeaks/zic_atoh1_p60.bed", col_names = F) 
-atoh1_zic_overlap_static = read_tsv("../results/mergedPeaks/zic_atoh1_static.bed", col_names = F) 
-
+# ChIP OVerlap
+atoh1_zic_overlap = read_tsv("../results/mergedPeaks/zic_atoh1.bed", col_names = F) 
 atoh_peaks =  read_tsv("../results/mergedPeaks/atoh1.bed", col_names = F)
 
-P60vP7_zic_overlap = read_tsv("../results/peak_gene/zic_atoh_overlap.txt")
+ctcfP56_zic_overlap = read_tsv("../results/mergedPeaks/zic_ctcfP56.bed", col_names = F) 
+ctcfP56_peaks =  read_tsv("../results/mergedPeaks/ctcfP56.bed", col_names = F)
+
+ctcfP22_zic_overlap = read_tsv("../results/mergedPeaks/zic_ctcfP22.bed", col_names = F) 
+ctcfP22_peaks =  read_tsv("../results/mergedPeaks/ctcfP22.bed", col_names = F)
+
+ctcfP4_zic_overlap = read_tsv("../results/mergedPeaks/zic_ctcfP4.bed", col_names = F) 
+ctcfP4_peaks =  read_tsv("../results/mergedPeaks/ctcfP4.bed", col_names = F)
+
+rad21P4_zic_overlap = read_tsv("../results/mergedPeaks/zic_rad21P4.bed", col_names = F) 
+rad21P4_peaks =  read_tsv("../results/mergedPeaks/rad21P4.bed", col_names = F)
+
+rad21P56_zic_overlap = read_tsv("../results/mergedPeaks/zic_rad21P56.bed", col_names = F) 
+rad21P56_peaks =  read_tsv("../results/mergedPeaks/rad21P56.bed", col_names = F)
+
+chd7_zic_overlap = read_tsv("../results/mergedPeaks/zic_chd7P4.bed", col_names = F) 
+chd7_peaks =  read_tsv("../results/mergedPeaks/chd7P4.bed", col_names = F)
+
+chd4_zic_overlap = read_tsv("../results/mergedPeaks/zic_chd4P22.bed", col_names = F) 
+chd4_peaks =  read_tsv("../results/mergedPeaks/chd4P22.bed", col_names = F)
+
+smc1_zic_overlap = read_tsv("../results/mergedPeaks/zic_smc1p22.bed", col_names = F) 
+smc1_peaks =  read_tsv("../results/mergedPeaks/smc1p22.bed", col_names = F)
+
+h2a_zic_overlap = read_tsv("../results/mergedPeaks/zic_h2ap22.bed", col_names = F) 
+h2a_peaks =  read_tsv("../results/mergedPeaks/h2ap22.bed", col_names = F)
+
+h3_zic_overlap = read_tsv("../results/mergedPeaks/zic_h3p22.bed", col_names = F) 
+h3_peaks =  read_tsv("../results/mergedPeaks/h3p22.bed", col_names = F)
+
+#P60vP7_zic_overlap = read_tsv("../results/peak_gene/zic_atoh_overlap.txt")
+
+
+# Differential Zic Data
+P60vP7_zic = read_tsv("../results/DiffExp_ZicChIP/ZicChIPDA_data.tsv")
 
 ```
 
+# Figure panels
+
+```{r schematic}
+
+a = rasterGrob(readPNG("../figures/rrho_workflow.png"), interpolate = T)
+
+```
+![](../figures/rrho_workflow.png)
+```{r distinct, fig.height=4, fig.width=8}
+
+c1 = plot_distinct(earlyvlate, "early", "late", "Distinct Early", "Distinct Late" )
+d1 = plot_distinct(earlyvlate_all, "early_all", "late_all", "Distinct Early", "Distinct Late" )
+
+sa1 = plot_distinct(early_actVrep, "early_activating", "early_repressive", "Distinct \nActivating", "Distinct \nRepressive" )
+sa2 = plot_distinct(late_actvrep, "late_activating", "late_repressive", "Distinct \nActivating", "Distinct \nRepressive" )
+sa3 = plot_distinct(actvrep, "activating", "repressive", "Distinct \nActivating", "Distinct \nRepressive" )
+sa4 = plot_distinct(early_allVloop, "early_all", "early", "Distinct \nAll Zic P7", "Distinct \nLooped Zic P7")
+sa5 = plot_distinct(late_allVloop, "late_all", "late", "Distinct \nAll Zic P60", "Distinct \nLooped Zic P60")
+
+
+ch1 = plot_distinct(earlyvlate_hom, "early", "late", "Distinct Early", "Distinct Late" )
+dh1 = plot_distinct(earlyvlate_all_hom, "early_all", "late_all", "Distinct Early", "Distinct Late" )
+
+
+sah1 = plot_distinct(early_actVrep_hom, "early_activating", "early_repressive", "Distinct \nActivating", "Distinct \nRepressive" )
+sah2 = plot_distinct(late_actvrep_hom, "late_activating", "late_repressive", "Distinct \nActivating", "Distinct \nRepressive" )
+sah3 = plot_distinct(actvrep_hom, "activating", "repressive", "Distinct \nActivating", "Distinct \nRepressive" )
+sah4 = plot_distinct(early_allVloop_hom, "early_all", "early", "Distinct \nAll Zic P7", "Distinct \nLooped Zic P7")
+sah5 = plot_distinct(late_allVloop_hom, "late_all", "late", "Distinct \nAll Zic P60", "Distinct \nLooped Zic P60")
+
+
+plot_grid(c1, ch1, labels = c("Bart", "Homer"), hjust = -2)
+plot_grid(d1, dh1, labels = c("Bart", "Homer"), hjust = -2)
+plot_grid(sa1, sah1, labels = c("Bart", "Homer"), hjust = -2)
+plot_grid(sa2, sah2, labels = c("Bart", "Homer"), hjust = -2)
+plot_grid(sa3, sah3, labels = c("Bart", "Homer"), hjust = -2)
+plot_grid(sa4, sah4, labels = c("Bart", "Homer"), hjust = -2)
+plot_grid(sa5, sah5, labels = c("Bart", "Homer"), hjust = -2)
+```
+
+
+```{r distinct supp, fig.height=8, fig.width=12}
+
+supp_dis = plot_grid(plot_grid(sa1, sa2, sa3, nrow = 1, labels = c("A", "B", "C")), 
+          plot_grid(sah1, sah2, sah3, nrow = 1,  labels = c("D", "E", "F")),
+          nrow = 2, 
+          labels = c("\t\t\t\t\t\t\t\t\tBart", "\t\t\t\t\t\t\t\t\tHomer"),
+          vjust = 1
+)
+
+
+supp_allvlooped = plot_grid(
+  plot_grid(sa4, sah4, labels = c("Bart", "Homer"), hjust = -2),
+  plot_grid(sa5, sah5, labels = c("Bart", "Homer"), hjust = -2), nrow =2)
+
+
+
+
+supp_dis
+supp_allvlooped
+
+
+
+png("../figures/supp_figure_rrho.png", height = 8, width = 12, res = 300, units = "in" )
+supp_dis
+dev.off()
+
+png("../figures/supp_figure_rrho_allvlooped.png", height = 8, width = 8, res = 300, units = "in" )
+supp_allvlooped
+dev.off()
+
+```
+
+```{r geneExpression, fig.height=10, fig.width=8}
+gene_expr_filt = 100
+
+c2 = plot_distinct_gene(earlyvlate, "early", "late", gene_expr_filt )
+d2 = plot_distinct_gene(earlyvlate_all, "early_all", "late_all", gene_expr_filt )
+
+ch2 = plot_distinct_gene(earlyvlate_hom, "early", "late", gene_expr_filt )
+dh2 = plot_distinct_gene(earlyvlate_all_hom, "early_all", "late_all", gene_expr_filt )
+
+plot_grid(c2$bar, ch2$bar, nrow = 2, rel_heights = c(.55, .45), labels = c("Bart", "Homer"))
+plot_grid(d2$bar, dh2$bar, nrow = 2, rel_heights = c(.55, .45), labels = c("Bart", "Homer"))
+
+
+plot_distinct_gene(early_allVloop_hom, "early", "early_all", gene_expr_filt )
+
+```
+
+
+# Distinctly Enriched TFs
+
+```{r figure 3, fig.height=10, fig.width=12}
+
+# looped peaks
+looped_fig = plot_grid(a,
+          plot_grid(plot_grid(ch1, c1, ncol = 1, labels = c("B\t\t\t\t\tMotif Enrichment", "C\t\t\t\t\tChIP Enrichment"), hjust = 0),
+          plot_grid(ch2$bar, c2$bar, ncol = 1, rel_heights = c(.4, .6), labels = c("D", "E")),
+          ncol = 2),
+          labels = c("A"),
+          ncol = 1,
+          rel_heights = c(.25, .75)
+          
+)
+
+# all peaks
+all_fig = plot_grid(a,
+          plot_grid(plot_grid(dh1, d1, ncol = 1, labels = c("B\t\t\t\t\tMotif Enrichment", "C\t\t\t\t\tChIP Enrichment"), hjust = 0),
+          plot_grid(dh2$bar, d2$bar, ncol = 1, rel_heights = c(.4, .6), labels = c("D", "E")),
+          ncol = 2),
+          labels = c("A"),
+          ncol = 1,
+          rel_heights = c(.25, .75)
+)
+
+
+
+png("../figures/figure2.png", height = 12, width = 12, res = 300, units = "in" )
+all_fig
+dev.off()
+
+
+png("../figures/figure2._altpng", height = 12, width = 12, res = 300, units = "in" )
+looped_fig
+dev.off()
+
+
+
+```
+Figure 3. Distinct TFs enriched between early and late regulatory modes. In-vivo ChIP overlap enrichment of Zic Zic ChIP peaks that were separated by mapped gene expression by early repressive, late repressive, early activating, and late activating. A ranked hyper-geometric overlap test was performed to identify the TFs distinctly enriched in each set between the A) Early and Late activating Zic peaks and between the D) Early and late repressive Zic peaks and G) All early and all late peaks. B) E), H) The gene expression of these distinct TFs whose expression was also temporally regulated. C)F)I) Enriched KEGG Pathways for each comparison. 
+
+# Supplemental Figures
 ```{r supp figure panel A}
-homer_tfs = early_homer %>% 
+homer_tfs = early_homer %>%  
   dplyr::mutate(SYMBOL = str_to_title(SYMBOL)) %>% 
   dplyr::select(SYMBOL) %>% 
   drop_na() %>% 
@@ -363,47 +621,9 @@ supp
 
 Supplemental Figure . Mouse in-vivo ChIP overlap enrichement (BART) and motif enrichement (HOMER) of Zic ChIP peaks. A) Overlap in TF ChIP profiles in each algorithm. TF enrichement was calculated by timepoint and gene regulation in the following categories B) Early Activaitng, C) Late Activating D) Early Repressive E) Late Repressive F) Early, E) Late.  *Denotes predicted TFs that are common between the ChIP overlap enrichement and motf enrichment. Color of TFs on y-axis indicate whether that TF was in both datasets (blue) ot not(black).
 
-```{r schematic}
-
-a = rasterGrob(readPNG("../figures/rrho_workflow.png"), interpolate = T)
-
-```
-![](../figures/rrho_workflow.png)
-```{r distinct, fig.height=4, fig.width=8}
-
-c1 = plot_distinct(earlyvlate, "early", "late", "Distinct Early", "Distinct Late" )
-d1 = plot_distinct(earlyvlate_all, "early_all", "late_all", "Distinct Early", "Distinct Late" )
-
-sa1 = plot_distinct(early_actVrep, "early_activating", "early_repressive", "Distinct \nActivating", "Distinct \nRepressive" )
-sa2 = plot_distinct(late_actvrep, "late_activating", "late_repressive", "Distinct \nActivating", "Distinct \nRepressive" )
-sa3 = plot_distinct(actvrep, "activating", "repressive", "Distinct \nActivating", "Distinct \nRepressive" )
-sa4 = plot_distinct(early_allVloop, "early_all", "early", "Distinct \nAll Zic P7", "Distinct \nLooped Zic P7")
-sa5 = plot_distinct(late_allVloop, "late_all", "late", "Distinct \nAll Zic P60", "Distinct \nLooped Zic P60")
 
 
-ch1 = plot_distinct(earlyvlate_hom, "early", "late", "Distinct Early", "Distinct Late" )
-dh1 = plot_distinct(earlyvlate_all_hom, "early_all", "late_all", "Distinct Early", "Distinct Late" )
-
-
-sah1 = plot_distinct(early_actVrep_hom, "early_activating", "early_repressive", "Distinct \nActivating", "Distinct \nRepressive" )
-sah2 = plot_distinct(late_actvrep_hom, "late_activating", "late_repressive", "Distinct \nActivating", "Distinct \nRepressive" )
-sah3 = plot_distinct(actvrep_hom, "activating", "repressive", "Distinct \nActivating", "Distinct \nRepressive" )
-sah4 = plot_distinct(early_allVloop_hom, "early_all", "early", "Distinct \nAll Zic P7", "Distinct \nLooped Zic P7")
-sah5 = plot_distinct(late_allVloop_hom, "late_all", "late", "Distinct \nAll Zic P60", "Distinct \nLooped Zic P60")
-
-
-plot_grid(c1, ch1, labels = c("Bart", "Homer"), hjust = -2)
-plot_grid(d1, dh1, labels = c("Bart", "Homer"), hjust = -2)
-plot_grid(sa1, sah1, labels = c("Bart", "Homer"), hjust = -2)
-plot_grid(sa2, sah2, labels = c("Bart", "Homer"), hjust = -2)
-plot_grid(sa3, sah3, labels = c("Bart", "Homer"), hjust = -2)
-plot_grid(sa4, sah4, labels = c("Bart", "Homer"), hjust = -2)
-plot_grid(sa5, sah5, labels = c("Bart", "Homer"), hjust = -2)
-```
-
-
-```{r distinct supp, fig.height=8, fig.width=12}
-
+```{r distinct supp, fig.width=10, fig.height=7}
 supp_dis = plot_grid(plot_grid(sa1, sa2, sa3, nrow = 1, labels = c("A", "B", "C")), 
           plot_grid(sah1, sah2, sah3, nrow = 1,  labels = c("D", "E", "F")),
           nrow = 2, 
@@ -411,141 +631,73 @@ supp_dis = plot_grid(plot_grid(sa1, sa2, sa3, nrow = 1, labels = c("A", "B", "C"
           vjust = 1
 )
 
+
+supp_allvlooped = plot_grid(
+  plot_grid(sa4, sah4, labels = c("Bart", "Homer"), hjust = -2),
+  plot_grid(sa5, sah5, labels = c("Bart", "Homer"), hjust = -2), nrow =2)
+
+
+
+
 supp_dis
+supp_allvlooped
+
+
 
 png("../figures/supp_figure_rrho.png", height = 8, width = 12, res = 300, units = "in" )
 supp_dis
 dev.off()
 
 png("../figures/supp_figure_rrho_allvlooped.png", height = 8, width = 8, res = 300, units = "in" )
-plot_grid(
-  plot_grid(sa4, sah4, labels = c("Bart", "Homer"), hjust = -2),
-  plot_grid(sa5, sah5, labels = c("Bart", "Homer"), hjust = -2), nrow =2)
+supp_allvlooped
 dev.off()
+``` 
+
+
+Supp Figure: Litte to no Distinct TFs based on mapped genes 
+
+# Examples:
+
+```{r chip overlap, fig.height=4, fig.width=10}
+
+
+atoh_p = plot_overlap(atoh_peaks, atoh1_zic_overlap, "P5 - Atoh1")
+chd7_p = plot_overlap(chd7_peaks, chd7_zic_overlap, "P4 - Chd7")
+chd4_p = plot_overlap(chd4_peaks, chd4_zic_overlap, "P22 - Chd4")
+ctcf22_p = plot_overlap(ctcfP22_peaks, ctcfP22_zic_overlap, "P22 - CTCF")
+ctcf4_p = plot_overlap(ctcfP4_peaks, ctcfP4_zic_overlap, "P4 - CTCF")
+ctcf56_p = plot_overlap(ctcfP56_peaks, ctcfP56_zic_overlap, "P56 - CTCF")
+rad21_4_p = plot_overlap(rad21P4_peaks, rad21P4_zic_overlap, "P4 - Rad21")
+rad21_56_p = plot_overlap(rad21P56_peaks, rad21P56_zic_overlap, "P56 - Rad21")
+smc1_p = plot_overlap(smc1_peaks, smc1_zic_overlap, "P22 - Smc1")
+h2a_p = plot_overlap(h2a_peaks, h2a_zic_overlap, "P22 - H2A.z")
+h3_p = plot_overlap(h3_peaks, h3_zic_overlap, "P22 - H3")
+
+# plot_grid(atoh_p$plot1, chd7_p$plot1, chd4_p$plot1, ctcf4_p$plot1, ctcf22_p$plot1, ctcf56_p$plot1, rad21_4_p$plot1, rad21_56_p$plot1, smc1_p$plot1, h2a_p$plot1, h3_p$plot1, nrow =2 )
+# plot_grid(atoh_p$plot2, chd7_p$plot2, chd4_p$plot2, ctcf4_p$plot2, ctcf22_p$plot2, ctcf56_p$plot2, rad21_4_p$plot2, rad21_56_p$plot2, smc1_p$plot2, h2a_p$plot2, h3_p$plot2, nrow =2)
+
+
+chip_o = plot_grid(atoh_p$plot1, atoh_p$plot2, 
+          chd7_p$plot1, chd7_p$plot2, 
+          chd4_p$plot1, chd4_p$plot2,
+          rad21_4_p$plot1, rad21_4_p$plot2,
+          rad21_56_p$plot1, rad21_56_p$plot2, 
+          smc1_p$plot1,  smc1_p$plot2,
+          h2a_p$plot1, h2a_p$plot2, 
+          nrow =4, 
+          rel_widths =  rep(c(.75, 1), 7) )
 
 
 
-
-```
-
-```{r geneExpression, fig.height=10, fig.width=8}
-gene_expr_filt = 100
-
-c2 = plot_distinct_gene(earlyvlate, "early", "late", gene_expr_filt )
-d2 = plot_distinct_gene(earlyvlate_all, "early_all", "late_all", gene_expr_filt )
-
-ch2 = plot_distinct_gene(earlyvlate_hom, "early", "late", gene_expr_filt )
-dh2 = plot_distinct_gene(earlyvlate_all_hom, "early_all", "late_all", gene_expr_filt )
-
-plot_grid(c2$bar, ch2$bar, nrow = 2, rel_heights = c(.55, .45), labels = c("Bart", "Homer"))
-plot_grid(d2$bar, dh2$bar, nrow = 2, rel_heights = c(.55, .45), labels = c("Bart", "Homer"))
-
-
-plot_distinct_gene(early_allVloop_hom, "early", "early_all", gene_expr_filt )
-
-```
-
-
-```{r panel d, fig.height=3, fig.width=3}
-# separating peak sets 
-zic_p7_overlap = atoh1_zic_overlap_p7 %>% 
-  dplyr::select(X1, X2, X3) %>% 
-  distinct()
-atoh1_p7_overlap = atoh1_zic_overlap_p7 %>% 
-  dplyr::select(X4, X5, X6) %>% 
-  distinct()
-
-zic_p60_overlap = atoh1_zic_overlap_p60 %>% 
-  dplyr::select(X1, X2, X3) %>% 
-  distinct()
-atoh1_p60_overlap = atoh1_zic_overlap_p60 %>% 
-  dplyr::select(X4, X5, X6) %>% 
-  distinct()
-
-
-zic_static_overlap = atoh1_zic_overlap_static %>% 
-  dplyr::select(X1, X2, X3) %>% 
-  distinct()
-atoh1_static_overlap = atoh1_zic_overlap_static %>% 
-  dplyr::select(X4, X5, X6) %>% 
-  distinct()
-
-
-#### How many atoh1 peaks overlap with the zic peaks?
-
-d1 = data.frame(group = c("P7", "P60", "Static"),
-                       count = c(nrow(atoh1_p7_overlap),nrow(atoh1_p60_overlap), nrow(atoh1_static_overlap) )/ nrow(atoh_peaks)) %>% 
-  add_row(group = "No overlap", count = 1 - sum(c(nrow(atoh1_p7_overlap),nrow(atoh1_p60_overlap), nrow(atoh1_static_overlap) )/ nrow(atoh_peaks))) %>% 
-  dplyr::mutate(col = "Atoh1 Peak") %>% 
-  ggplot(aes(x = col, y = count, fill = group)) +
-  geom_col() +
-  scale_fill_manual(limits = c("P7", "P60", "Static", "No Overlap"), labels = c("P7", "P60", "Static", "No \nOverlap"),values = c("blue", "red", "black", "grey")) +
-  theme_classic() +
-  labs(x = "", y = "% Overlap0", fill = "Zic Peak") 
-d1
-```
-
-```{r, fig.height=4, fig.width=3}
-# What proportion of the Zic peaks overlap with the atoh1 pwaks
-# create data frame
-mat  = data.frame(overlap = c(nrow(zic_p7_overlap),nrow(zic_p60_overlap), nrow(zic_static_overlap) ),
-                  npeaks = c(sum(P60vP7_zic$zic_sig == "DOWN"), sum(P60vP7_zic$zic_sig == "UP"), sum(P60vP7_zic$zic_sig == "N.S."))) %>%
-  dplyr::mutate( non_overlap = npeaks - overlap) %>% 
-  dplyr::select(-npeaks)
-
-row.names(mat) =  c("P7", "P60", "Static")
-
-# compute stats
-p7vp60  = prop.test(as.matrix(mat)[1:2,])
-p7vstatic  = prop.test(as.matrix(mat)[c(1,3),])
-p60vstatic  = prop.test(as.matrix(mat)[c(2,3),])
-
-#plot
-d2 = mat %>% 
-  dplyr::mutate(group = rownames(.),
-                 group = fct_relevel(group, c("P7", "Static", "P60"))) %>% 
-  pivot_longer(cols = c("overlap", "non_overlap")) %>% 
-  ggplot(aes(x = group, y = value, fill = name)) +
-  geom_col(position = "fill") +
-  labs(x = "Zic Peak", y = "% Overlap", fill = "Overlap\n w/Atoh1") +
-  scale_fill_manual(limits = c("non_overlap", "overlap"), labels = c("No", "Yes"), values = c("black", "grey")) +
-  geom_signif(tip_length = .000001, annotations = c("***", "***"), xmin = c(0.8, 0.8), xmax = c(2.2,3.2), y_position = c(1.01, 1.1) , color = "black") +
-  theme_classic() +
-  scale_y_continuous(expand = expansion(add = c(0, .2)), limits = c(0,1), oob = rescale_none)+
-  theme(legend.position = "bottom")
-d2
-```
-
-```{r, fig.width= 4, fig.height=4}
-
-cont = P60vP7_zic_overlap %>% 
-  dplyr::filter(Overlap %in% c(TRUE)) %>% 
-  dplyr::filter(zic_sig %in% c("UP", "DOWN", "N.S.")) %>% 
-  dplyr::select(zic_sig, group)
-
-tab = table(cont$zic_sig, cont$group)
-
-
-sig_all = chisq_test(tab)
-sig_p7vstatic = chisq_test(tab[c("DOWN", "N.S."),])
-sig_p7vp60 = chisq_test(tab[c("DOWN", "UP"),])
-sig_staticvp60 = chisq_test(tab[c("N.S.", "UP"),])
-
-d3 = P60vP7_zic_overlap %>% 
-  dplyr::filter(Overlap %in% c(TRUE)) %>% 
-  dplyr::filter(zic_sig %in% c("UP", "DOWN", "N.S.")) %>% 
-  dplyr::count(zic_sig, group) %>% 
-  ggplot(aes( x = zic_sig, y = n,  fill = group)) +
-  geom_bar(stat = "identity", position = "fill") +
-  labs(y = "% Peaks", x = "Overlap with Atoh1", fill = "Genomic Region")+
-  scale_x_discrete(limits = c("DOWN", "N.S.", "UP"), labels = c("P7", "Static", "P60"))+
-  theme_classic() +
-  ggsignif::geom_signif(tip_length = .0000001, annotations = sig_all$p.signif, xmin = c(0.8), xmax = c(3.2), y_position = c(1.1) , color = "black")
-d3
+png("../figures/supp_figure_chip_overlap.png", height = 6, width = 8, res = 300, units = "in" )
+chip_o
+dev.off()
 ```
 
 
-```{r panel e, fig.width=12, fig.height=3}
+
+
+```{r tracks, fig.width=12, fig.height=3}
  # set scheme
 scheme <- getScheme(name=getOption("Gviz.scheme"))
 scheme$GdObject$col.axis = "white"
@@ -567,19 +719,47 @@ options(Gviz.scheme="myScheme")
 genomeAxis <- GenomeAxisTrack(name="MyAxis") 
 customFromTxDb <- GeneRegionTrack(TxDb.Mmusculus.UCSC.mm10.knownGene)
 
+# make bigwig tracks
 p7_zic_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/zic_chip/SRR1557091/SRR1557091_norm.bw", as="GRanges"), 
                    genome = "mm10",name = "Zic P7", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
 p60_zic_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/zic_chip/SRR1557093/SRR1557093_norm.bw", as="GRanges"), 
                    genome = "mm10",name = "Zic P60", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
 atoh1_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/atoh1_chip/SRR059286/SRR059286_norm.bw", as="GRanges"), 
                    genome = "mm10",name = "Atoh1", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+chd7_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/chd7_p4_chip/SRR13371039/SRR13371039_norm.bw", as="GRanges"), 
+                   genome = "mm10",name = "Chd7", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+chd4_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/chd4_p22_chip/SRR3659055/SRR3659055_norm.bw", as="GRanges"), 
+                   genome = "mm10",name = "Chd4", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+ctcf_p4_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/ctcf_p4_chip/SRR13371014/SRR13371014_norm.bw", as="GRanges"), 
+                   genome = "mm10",name = "CTCF P4", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+ctcf_p22_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/ctcf_p22_chip/SRR10275430/SRR10275430_norm.bw", as="GRanges"), 
+                   genome = "mm10",name = "CTCF P22", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+ctcf_p56_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/ctcf_p56_chip/SRR8696015/SRR8696015_norm.bw", as="GRanges"), 
+                   genome = "mm10",name = "CTCF P56", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+rad21_p4_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/rad21_p4_chip/SRR13371020/SRR13371020_norm.bw", as="GRanges"), 
+                   genome = "mm10",name = "Rad21 P4", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+rad21_p56_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/rad21_p56_chip/SRR8696023/SRR8696023_norm.bw", as="GRanges"), 
+                   genome = "mm10",name = "Rad21 P56", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+smc1_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/smc1_p22_chip/SRR10275434/SRR10275434_norm.bw", as="GRanges"), 
+                   genome = "mm10",name = "Smc1 P22", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+h2a_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/H2A_p22_chip/SRR3659059/SRR3659059_norm.bw", as="GRanges"), 
+                   genome = "mm10",name = "H2A.z P22", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+h3_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/H3_p22_chip/SRR3659065/SRR3659065_norm.bw", as="GRanges"), 
+                   genome = "mm10",name = "H3 P22", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
 
-atoh1_zic_overlap = bind_rows(atoh1_zic_overlap_p7, atoh1_zic_overlap_static)
-peaks = atoh1_zic_overlap %>% 
-  dplyr::select(X1, X2, X3) %>% 
-  distinct()
-atoh1_zic_track = AnnotationTrack(GRanges(seqnames = peaks$X1, ranges = IRanges(start = peaks$X2, end = peaks$X3)),
-                                  genome = "mm10", name = "Atoh1", col.title = "white", col.border.title = "black",fill = "black")
+
+# make peak tracks
+atoh1_zic_track = make_track(atoh1_zic_overlap, "Atoh1")
+chd7_zic_track = make_track(chd7_zic_overlap, "Chd7")
+chd4_zic_track = make_track(chd4_zic_overlap, "Chd4")
+ctcf_p4_zic_track = make_track(ctcfP4_zic_overlap, "Ctcf P4")
+ctcf_p22_zic_track = make_track(ctcfP22_zic_overlap, "Ctcf P22")
+ctcf_p56_zic_track = make_track(ctcfP56_zic_overlap, "Ctcf P56")
+rad21_p4_zic_track = make_track(rad21P4_zic_overlap, "Rad21 P4")
+rad21_p56_zic_track = make_track(rad21P56_zic_overlap, "Rad21 P56")
+smc1_zic_track = make_track(smc1_zic_overlap, "Smc1")
+h2a_zic_track = make_track(h2a_zic_overlap, "H2A.z")
+h3_zic_track = make_track(H3_zic_overlap, "H3")
 
 
 
@@ -621,54 +801,4 @@ e1 = rasterGrob(readPNG("../figures/fig1_track1.png"))
 # plot_track("Unc5c", tracks, 100000, 100000)
 # plot_track("Zbtb18", tracks, 100000, 100000) #zfp238
 # plot_track("Zic4", tracks, 100000, 100000)
-
-
-
 ```
-
-
-```{r figure 3, fig.height=10, fig.width=12}
-
-# looped peaks
-looped_fig = plot_grid(a,
-          plot_grid(plot_grid(ch1, c1, ncol = 1, labels = c("B\t\t\t\t\tMotif Enrichment", "C\t\t\t\t\tChIP Enrichment"), hjust = 0),
-          plot_grid(ch2$bar, c2$bar, ncol = 1, rel_heights = c(.4, .6), labels = c("D", "E")),
-          ncol = 2),
-          labels = c("A"),
-          ncol = 1,
-          rel_heights = c(.25, .75)
-          
-)
-
-# all peaks
-all_fig = plot_grid(a,
-          plot_grid(plot_grid(dh1, d1, ncol = 1, labels = c("B\t\t\t\t\tMotif Enrichment", "C\t\t\t\t\tChIP Enrichment"), hjust = 0),
-          plot_grid(dh2$bar, d2$bar, ncol = 1, rel_heights = c(.4, .6), labels = c("D", "E")),
-          ncol = 2),
-          labels = c("A"),
-          ncol = 1,
-          rel_heights = c(.25, .75)
-)
-
-
-
-png("../figures/figure3.png", height = 12, width = 12, res = 300, units = "in" )
-looped_fig
-dev.off()
-
-
-```
-Figure 3. Distinct TFs enriched between early and late regulatory modes. In-vivo ChIP overlap enrichment of Zic Zic ChIP peaks that were separated by mapped gene expression by early repressive, late repressive, early activating, and late activating. A ranked hyper-geometric overlap test was performed to identify the TFs distinctly enriched in each set between the A) Early and Late activating Zic peaks and between the D) Early and late repressive Zic peaks and G) All early and all late peaks. B) E), H) The gene expression of these distinct TFs whose expression was also temporally regulated. C)F)I) Enriched KEGG Pathways for each comparison. 
-
-```{r, fig.width=10, fig.height=7}
-sa1 = plot_distinct(early_actVrep, "early_activating", "early_repressive", "Distinct \nActivating", "Distinct \nRepressive" )
-sa2 = plot_distinct(late_actvrep, "late_activating", "late_repressive", "Distinct \nActivating", "Distinct \nRepressive" )
-sa3 = plot_distinct(actvrep, "activating", "repressive", "Distinct \nActivating", "Distinct \nRepressive" )
-sa4 = plot_distinct(early_allVloop, "early_all", "early", "Distinct \nAll Zic P7", "Distinct \nLooped Zic P7")
-sa5 = plot_distinct(late_allVloop, "late_all", "late", "Distinct \nAll Zic P60", "Distinct \nLooped Zic P60")
-
-plot_grid(sa1, sa2, sa3, sa4, sa5, labels = LETTERS[1:5])
-```
-
-
-Supp Figure: Litte to no Distinct TFs based on mapped genes 
