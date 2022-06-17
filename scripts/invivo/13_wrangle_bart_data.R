@@ -8,9 +8,9 @@ library(xlsx)
 library(RRHO)
 
 # Read in data ------------------------------------------------------------
-result_paths = paste0("../../results/peak_gene/", list.files(path = "../../results/peak_gene/", pattern = "_bart_results.txt", recursive = T))
+result_paths = paste0("../../results/invivo/peak_gene/", list.files(path = "../../results/invivo/peak_gene/", pattern = "_bart_results.txt", recursive = T))
 names(result_paths) = str_extract(result_paths, "(?<=_gene/).+(?=/)")
-result_paths2 =  paste0("../../results/DiffExp_ZicChIP/", list.files(path = "../../results/DiffExp_ZicChIP/", pattern = "_bart_results.txt", recursive = T))
+result_paths2 =  paste0("../../results/invivo/DiffExp_ZicChIP/", list.files(path = "../../results/Dinvivo/iffExp_ZicChIP/", pattern = "_bart_results.txt", recursive = T))
 names(result_paths2) = paste0(str_extract(result_paths2, "(?<=_ZicChIP/).+(?=/)"), "_all")
 
 all_result_paths = c(result_paths, result_paths2)
@@ -18,7 +18,7 @@ all_result_paths = c(result_paths, result_paths2)
 bart_data <- all_result_paths %>%
   map_df(read_tsv, .id = "filename")   
 
-geneExp <- read_tsv("../../results/DiffExp_RNA/GeneExp_data.tsv")
+geneExp <- read_tsv("../../results/invivo/DiffExp_RNA/GeneExp_data.tsv")
 
 tf_gene_mapping = data.frame(TF = c("BIRA", "RPA", "C17orf96", "TP53", rep("TLE", 7), "PR", rep("STAT5",2), "ZNF143", "FAM60A", "ZNF384", "TP63", rep("NP23", 2), "SUPT5H", "NRDC" ),
                              SYMBOL = c("Hlcs", "Rpa1", "Epop","Trp53", paste0("TLE", 1:7), "Pgr", "Stat5a", "Stat5b","Zfp143", "Sinhcaf", "Zfp384","Trp63", "Nup98", "Phf23", "Supt5", "Nrd1"   )
@@ -72,13 +72,13 @@ rrho_tf <- function(cond1, cond2, bart_data1, bart_data2, lims = NULL){
   
   
   # making output dir
-  system(paste0("rm -r  ../../results/peak_gene/rrho/", cond1,"v" ,cond2))
-  system(paste0("mkdir ../../results/peak_gene/rrho/", cond1,"v" ,cond2))
+  system(paste0("rm -r  ../../results/invivo/peak_gene/rrho/", cond1,"v" ,cond2))
+  system(paste0("mkdir ../../results/invivo/peak_gene/rrho/", cond1,"v" ,cond2))
   
   object = RRHO(as.data.frame(dat1), 
                 as.data.frame(dat2), 
                 labels = c(cond1, cond2), 
-                outputdir = paste0("../../results/peak_gene/rrho/",  cond1,"v" ,cond2, "/"), 
+                outputdir = paste0("../../results/invivo/peak_gene/rrho/",  cond1,"v" ,cond2, "/"), 
                 alternative = "enrichment", 
                 plots = T,
                 BY = T,
@@ -89,7 +89,7 @@ rrho_tf <- function(cond1, cond2, bart_data1, bart_data2, lims = NULL){
 pull_distinct_enriched <-function(cond1, cond2, bart_data1, bart_data2){
   # get the list of non overlapping tfs 
   overlappingTFs = 
-    list.files(paste0("../../results/peak_gene/rrho/", cond1,"v" ,cond2 ), pattern = ".csv", full.names = T) %>% 
+    list.files(paste0("../../results/invivo/peak_gene/rrho/", cond1,"v" ,cond2 ), pattern = ".csv", full.names = T) %>% 
     map_df(read_csv, col_names = F) %>% 
     dplyr::filter(!grepl("ZIC", X1)) %>% 
     pull(X1)
@@ -183,17 +183,17 @@ runRRHO <- function(cond1, cond2, bart_data1, bart_data2, lims = NULL){
 
 # Wrangle data ------------------------------------------------------------
 
-activating = map_bart("activating", 0.05) %>% write_tsv("../../results/peak_gene/activating/bart_results.txt")
-repressive = map_bart("repressive", 0.05) %>% write_tsv("../../results/peak_gene/repressive/bart_results.txt")
-late_activating = map_bart("late_activating", 0.05) %>% write_tsv("../../results/peak_gene/late_activating/bart_results.txt")
-late_repressive = map_bart("late_repressive", 0.05) %>% write_tsv("../../results/peak_gene/late_repressive/bart_results.txt")
-early_activating = map_bart("early_activating", 0.05) %>% write_tsv("../../results/peak_gene/early_activating/bart_results.txt")
-early_repressive = map_bart("early_repressive", 0.05) %>% write_tsv("../../results/peak_gene/early_repressive/bart_results.txt")
-early = map_bart("early", 0.05) %>% write_tsv("../../results/peak_gene/early/bart_results.txt")
-late = map_bart("late", 0.05) %>% write_tsv("../../results/peak_gene/late/bart_results.txt")
-early_all = map_bart("early_all", 0.05) %>% write_tsv("../../results/DiffExp_ZicChIP/early/bart_results.txt")
-late_all = map_bart("late_all", 0.05) %>% write_tsv("../../results/DiffExp_ZicChIP/late/bart_results.txt")
-static_all = map_bart("late_all", 0.05) %>% write_tsv("../../results/DiffExp_ZicChIP/static/bart_results.txt")
+activating = map_bart("activating", 0.05) %>% write_tsv("../../results/invivo/peak_gene/activating/bart_results.txt")
+repressive = map_bart("repressive", 0.05) %>% write_tsv("../../results/invivo/peak_gene/repressive/bart_results.txt")
+late_activating = map_bart("late_activating", 0.05) %>% write_tsv("../../results/invivo/peak_gene/late_activating/bart_results.txt")
+late_repressive = map_bart("late_repressive", 0.05) %>% write_tsv("../../results/invivo/peak_gene/late_repressive/bart_results.txt")
+early_activating = map_bart("early_activating", 0.05) %>% write_tsv("../../results/invivo/peak_gene/early_activating/bart_results.txt")
+early_repressive = map_bart("early_repressive", 0.05) %>% write_tsv("../../results/invivo/peak_gene/early_repressive/bart_results.txt")
+early = map_bart("early", 0.05) %>% write_tsv("../../results/invivo/peak_gene/early/bart_results.txt")
+late = map_bart("late", 0.05) %>% write_tsv("../../results/invivo/peak_gene/late/bart_results.txt")
+early_all = map_bart("early_all", 0.05) %>% write_tsv("../../results/invivo/DiffExp_ZicChIP/early/bart_results.txt")
+late_all = map_bart("late_all", 0.05) %>% write_tsv("../../results/invivo/DiffExp_ZicChIP/late/bart_results.txt")
+static_all = map_bart("late_all", 0.05) %>% write_tsv("../../results/invivo/DiffExp_ZicChIP/static/bart_results.txt")
 
 earlyVlate_act = runRRHO("early_activating", "late_activating", early_activating, late_activating, lims = c(0, 400))
 early_actVrep = runRRHO("early_activating", "early_repressive", early_activating, early_repressive, lims = c(0, 400))
@@ -206,12 +206,12 @@ late_allVloop = runRRHO("late_all", "late", late_all, late, lims = c(0, 400))
 earlyVlate_all = runRRHO("early_all", "late_all", early_all, late_all, lims = c(0,400))
 # Save table --------------------------------------------------------------
 
-earlyVlate_act$table %>% write_tsv("../../results/peak_gene/rrho/early_late_activating.txt")
-early_actVrep$table %>% write_tsv("../../results/peak_gene/rrho/early_activating_repressive.txt")
-earlyVlate_rep$table %>% write_tsv("../../results/peak_gene/rrho/early_late_repressive.txt")
-late_actvrep$table %>% write_tsv("../../results/peak_gene/rrho/late_activating_repressive.txt")
-actvrep$table %>% write_tsv("../../results/peak_gene/rrho/activating_repressive.txt")
-earlyvlate$table %>% write_tsv("../../results/peak_gene/rrho/early_late.txt")
-early_allVloop$table %>% write_tsv("../../results/peak_gene/rrho/early_allvloop.txt")
-late_allVloop$table %>% write_tsv("../../results/peak_gene/rrho/late_allvloop.txt")
-earlyVlate_all$table %>% write_tsv("../../results/peak_gene/rrho/earlyvlate_all.txt")
+earlyVlate_act$table %>% write_tsv("../../results/invivo/peak_gene/rrho/early_late_activating.txt")
+early_actVrep$table %>% write_tsv("../../results/invivo/peak_gene/rrho/early_activating_repressive.txt")
+earlyVlate_rep$table %>% write_tsv("../../results/invivo/peak_gene/rrho/early_late_repressive.txt")
+late_actvrep$table %>% write_tsv("../../results/invivo/peak_gene/rrho/late_activating_repressive.txt")
+actvrep$table %>% write_tsv("../../results/invivo/peak_gene/rrho/activating_repressive.txt")
+earlyvlate$table %>% write_tsv("../../results/invivo/peak_gene/rrho/early_late.txt")
+early_allVloop$table %>% write_tsv("../../results/invivo/peak_gene/rrho/early_allvloop.txt")
+late_allVloop$table %>% write_tsv("../../results/invivo/peak_gene/rrho/late_allvloop.txt")
+earlyVlate_all$table %>% write_tsv("../../results/invivo/peak_gene/rrho/earlyvlate_all.txt")

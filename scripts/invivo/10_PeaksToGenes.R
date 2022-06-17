@@ -14,13 +14,13 @@ options(scipen=999)
 
 # Read in data ------------------------------------------------------------
 # Differential RNA-seq, Zic ChIP-seq, DNase-seq, H3K27ac ChIP-seq results
-bulkRNA_DE_data <- read_delim("../../results/DiffExp_RNA/GeneExp_data.tsv",
+bulkRNA_DE_data <- read_delim("../../results/invivo/DiffExp_RNA/GeneExp_data.tsv",
                               delim = "\t", escape_double = FALSE, trim_ws = TRUE)
-zic_DA_data <- read_delim("../../results/DiffExp_ZicChIP/ZicChIPDA_data.tsv", 
+zic_DA_data <- read_delim("../../results/invivo/DiffExp_ZicChIP/ZicChIPDA_data.tsv", 
                             delim = "\t", escape_double = FALSE, trim_ws = TRUE)
-dnase_DA_data <- read_delim("../../results/DiffExp_DNase/DNaseDA_data.tsv",
+dnase_DA_data <- read_delim("../../results/invivo/DiffExp_DNase/DNaseDA_data.tsv",
                             delim = "\t", escape_double = FALSE, trim_ws = TRUE)
-k27ac_DA_data <- read_delim("../../results/DiffExp_H3K27ac/K27ac_data.tsv",
+k27ac_DA_data <- read_delim("../../results/invivo/DiffExp_H3K27ac/K27ac_data.tsv",
                             delim = "\t", escape_double = FALSE, trim_ws = TRUE)
 # looping data 
 # > P56 PLAC-seq loops. source: https://www.nature.com/articles/s41586-019-1190-7
@@ -30,14 +30,14 @@ loop_data_adult <- read_delim("../../sequencing_data/Yamada/combined_MAPS_peaks.
 loop_data_young <- read_delim("../../sequencing_data/Reddy/loops_gene_map.txt",
                               delim = "\t", escape_double = FALSE, trim_ws = TRUE)
 # > bed file of all anchor regions
-anchors <- read_delim("../../results/mergedPeaks/anchors.bed",
+anchors <- read_delim("../../results/invivo/mergedPeaks/anchors.bed",
                       delim = "\t", escape_double = FALSE, trim_ws = TRUE, col_names = F)
 # > intersection of peaks and anchors 
-zic_loop_map <- read_delim("../../results/mergedPeaks/zic_anchors.bed",
+zic_loop_map <- read_delim("../../results/invivo/mergedPeaks/zic_anchors.bed",
                            delim = "\t", escape_double = FALSE, trim_ws = TRUE, col_names = F)
-dnase_loop_map <- read_delim("../../results/mergedPeaks/DNase_anchors.bed",
+dnase_loop_map <- read_delim("../../results/invivo/mergedPeaks/DNase_anchors.bed",
                            delim = "\t", escape_double = FALSE, trim_ws = TRUE, col_names = F)
-k27ac_loop_map <- read_delim("../../results/mergedPeaks/H3K27ac_anchors.bed",
+k27ac_loop_map <- read_delim("../../results/invivo/mergedPeaks/H3K27ac_anchors.bed",
                            delim = "\t", escape_double = FALSE, trim_ws = TRUE, col_names = F)
 
 
@@ -204,36 +204,36 @@ write_tsv(annot, "../../results/FinalTables/loop_data.txt")
 
 # Output peak sets --------------------------------------------------------
 output_peak_set("UP", "UP") %>% 
-  write_tsv("../../results/peak_gene/late_activating/P60_peaks_UpGenes.bed", col_names = F)
+  write_tsv("../../results/invivo/peak_gene/late_activating/P60_peaks_UpGenes.bed", col_names = F)
 
 output_peak_set("UP", "DOWN") %>% 
-  write_tsv("../../results/peak_gene/late_repressive/P60_peaks_DOWNGenes.bed", col_names = F)
+  write_tsv("../../results/invivo/peak_gene/late_repressive/P60_peaks_DOWNGenes.bed", col_names = F)
 
 output_peak_set("DOWN", "DOWN") %>% 
-  write_tsv("../../results/peak_gene/early_activating/P7_peaks_DOWNGenes.bed", col_names = F)
+  write_tsv("../../results/invivo/peak_gene/early_activating/P7_peaks_DOWNGenes.bed", col_names = F)
 
 output_peak_set("DOWN", "UP") %>% 
-  write_tsv("../../results/peak_gene/early_repressive/P7_peaks_UpGenes.bed", col_names = F)
+  write_tsv("../../results/invivo/peak_gene/early_repressive/P7_peaks_UpGenes.bed", col_names = F)
 
 bind_rows(output_peak_set("UP", "UP"),output_peak_set("DOWN", "DOWN") ) %>%
-  write_tsv("../../results/peak_gene/activating/activating.bed", col_names = F)
+  write_tsv("../../results/invivo/peak_gene/activating/activating.bed", col_names = F)
 
 bind_rows(output_peak_set("UP", "DOWN"),output_peak_set("DOWN", "UP") ) %>%
-  write_tsv("../../results/peak_gene/repressive/repressive.bed", col_names = F)
+  write_tsv("../../results/invivo/peak_gene/repressive/repressive.bed", col_names = F)
 
 output_peak_set("UP", c("UP", "DOWN")) %>% 
-  write_tsv("../../results/peak_gene/late/late.bed", col_names = F)
+  write_tsv("../../results/invivo/peak_gene/late/late.bed", col_names = F)
 
 output_peak_set("DOWN", c("UP", "DOWN")) %>% 
-  write_tsv("../../results/peak_gene/early/early.bed", col_names = F)
+  write_tsv("../../results/invivo/peak_gene/early/early.bed", col_names = F)
 
 output_peak_set(c("UP", "DOWN", "N.S"), c("UP")) %>% 
-  write_tsv("../../results/peak_gene/zicPeaks_P60genes.bed", col_names = F)
+  write_tsv("../../results/invivo/peak_gene/zicPeaks_P60genes.bed", col_names = F)
 
 output_peak_set(c("UP", "DOWN", "N.S."), c("DOWN")) %>% 
-  write_tsv("../../results/peak_gene/zicPeaks_P7genes.bed", col_names = F)
+  write_tsv("../../results/invivo/peak_gene/zicPeaks_P7genes.bed", col_names = F)
 
 output_peak_set(c("UP", "DOWN", "N.S."), c("N.S.")) %>% 
-  write_tsv("../../results/peak_gene/zicPeaks_staticgenes.bed", col_names = F)
+  write_tsv("../../results/invivo/peak_gene/zicPeaks_staticgenes.bed", col_names = F)
 
 

@@ -3,7 +3,7 @@
 # This script will use bedtools to find the overlap in peaks (Zic, DNase, H3K27ac) in the anchors of the 
 # predicted chroamtin loops in adult cerebellum
 
-cd ../../results/mergedPeaks/
+cd ../../results/invivo/mergedPeaks/
 
 P56ANCHOR=../../sequencing_data/Yamada/combined_MAPS_peaks.txt
 P4ANCHOR=../../sequencing_data/Reddy/P4_loops.bed

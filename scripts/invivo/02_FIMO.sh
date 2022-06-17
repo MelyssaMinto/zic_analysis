@@ -10,15 +10,15 @@ PREFIX=Zic
 
 
 
-mkdir ../../results/FIMO
+mkdir ../../results/invivo/FIMO
 
 #create fasta for scaning
-bedtools getfasta -fi $GENOME -bed $PEAK -fo '../../results/FIMO/'$PREFIX.fa
+bedtools getfasta -fi $GENOME -bed $PEAK -fo '../../results/invivo/FIMO/'$PREFIX.fa
 
 # Motif Scanning
 echo "...motif scanning"
 #> scan condition for target motif
-fimo --o '../../results/FIMO/'$PREFIX $MOTIF '../../results/FIMO/'$PREFIX.fa
+fimo --o '../../results/invivo/FIMO/'$PREFIX $MOTIF '../../results/invivo/FIMO/'$PREFIX.fa
 
 
 echo 'Fin!'

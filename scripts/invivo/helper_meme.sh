@@ -6,7 +6,7 @@ PREFIX=$1
 DB=~/GenomeTools/meme-5.0.5/db/motif_databases/MOUSE/HOCOMOCOv11_full_MOUSE_mono_meme_format.meme
 DataDir=$2
 
-cd ../../results/MEME
+cd ../../results/invivo/MEME
 mkdir $PREFIX
 cd $PREFIX
 

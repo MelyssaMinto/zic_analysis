@@ -245,9 +245,9 @@ sd1 = mapped_data %>%
   theme(plot.title = element_text(face = "bold"))
 
 
-#png("../figures/supp_figure2.png", height = 4, width = 7, units = "in", res = 300)
+png("../figures/supp_figure2.png", height = 4, width = 7, units = "in", res = 300)
 plot_grid(sa1,sb1, nrow = 1, labels = LETTERS[1:4])
-#dev.off()
+dev.off()
 
 ```
 
@@ -312,14 +312,14 @@ sd2 = n_peaks_to_gene %>%
   theme_classic() +
   labs(x = "Number of Zic Peaks", y = "Absolute Gene LFC")
 
-#png("../figures/supp_figure3.png", height = 7, width = 10, units = "in", res = 300)
+png("../figures/supp_figure3.png", height = 7, width = 10, units = "in", res = 300)
 plot_grid(sa2, 
           plot_grid(sb2, sc2,sd2, align = "v", ncol = 1, labels = c("B", "C", "D")),
           ncol = 2,
           nrow = 1,
           labels = c("A", ""),
           rel_widths = c(2, 1))
-#dev.off()
+dev.off()
 ```
 
 Supplemental Figure 3. A) Count of Zic peaks mapped to gene. B) Distribution of number of zic peaks by gene regulation. Scatterplots of C) Mean expression and D) Log2FC of genes against Number of zic peaks show that there is no correlation between number of zic peaks and gene degree of gene regulation.
@@ -376,18 +376,18 @@ plot_zic_ratio(test_list)$p2
              sd_ratio = sd(ratio)) %>% 
    ungroup() %>% 
    ggplot(aes(x = zic_sig, y = mean_count,ymin = mean_count - sd_count, ymax = mean_count + sd_count, fill = anchor_type)) +
-  geom_col(position = position_dodge2(width = 0.9)) + 
-  geom_errorbar(position = position_dodge2(width = 0.9)) +
-  theme_bw() +
-  scale_fill_manual(values = c( "grey", "black")) +
-  scale_x_discrete(labels = c("DOWN" = "P7","N.S."= "Static","UP" = "P60"))+
-  facet_wrap(~gene_sig) +
-  labs(x = "Differential Zic Region", y = "no. of Peaks", fill = "") +
-  theme(strip.background = element_rect( fill = "white"),
-        strip.text = element_markdown(),
-        strip.text.y  = element_markdown(),
-        strip.text.x  = element_markdown(),
-        legend.position = "bottom")
+     geom_errorbar(position = position_dodge2(width = 0.9)) +
+    geom_col(position = position_dodge2(width = 0.9)) + 
+    theme_bw() +
+    scale_fill_manual(values = c( "grey", "black")) +
+    scale_x_discrete(labels = c("DOWN" = "P7","N.S."= "Static","UP" = "P60"))+
+    facet_wrap(~gene_sig, labeller = labeller(gene_sig = c("DOWN" = "Down-regulated","N.S."= "Constituitive","UP" = "Up-regulated") )) +
+    labs(x = "Differential Zic Region", y = "no. of Peaks", fill = "") +
+    theme(strip.background = element_rect( fill = "white"),
+          strip.text = element_markdown(),
+          strip.text.y  = element_markdown(),
+          strip.text.x  = element_markdown(),
+          legend.position = "bottom")
  
  
   dist_prox %>%   
@@ -401,17 +401,16 @@ plot_zic_ratio(test_list)$p2
    ggplot(aes(x = zic_sig, y = mean_ratio,ymin = mean_ratio - sd_ratio, ymax = mean_ratio + sd_ratio, fill = anchor_type)) +
   geom_errorbar(position = position_dodge2(width = 0.9)) +
       geom_col(position = position_dodge2(width = 0.9)) + 
-
-  theme_bw() +
-  scale_fill_manual(values = c( "grey", "black")) +
-  scale_x_discrete(labels = c("DOWN" = "P7","N.S."= "Static","UP" = "P60"))+
-  facet_wrap(~gene_sig) +
-  labs(x = "Differential Zic Region", y = "prop. of Peaks", fill = "") +
-  theme(strip.background = element_rect( fill = "white"),
-        strip.text = element_markdown(),
-        strip.text.y  = element_markdown(),
-        strip.text.x  = element_markdown(),
-        legend.position = "bottom")
+    theme_classic() +
+    scale_fill_manual(values = c( "grey", "black")) +
+    scale_x_discrete(labels = c("DOWN" = "P7","N.S."= "Static","UP" = "P60"))+
+    facet_wrap(~gene_sig, labeller = labeller(gene_sig = c("DOWN" = "Down-regulated","N.S."= "Constituitive","UP" = "Up-regulated") )) +
+    labs(x = "Differential Zic Region", y = "prop. of Peaks", fill = "") +
+    theme(strip.background = element_rect( fill = "white"),
+          strip.text = element_markdown(),
+          strip.text.y  = element_markdown(),
+          strip.text.x  = element_markdown(),
+          legend.position = "bottom")
 ```
 
 ```{r schematic}
@@ -713,9 +712,9 @@ fig3 = plot_grid( plot_grid( sch,  plot_grid(b, a1, ncol = 1, labels = c("B", "C
            rel_heights = c(.50, .50)
            )
 
-#png("../figures/figure3.png", height = 12, width = 12, res = 300, units = "in")
+png("../figures/figure3.png", height = 12, width = 12, res = 300, units = "in")
 fig3
-#dev.off()
+dev.off()
 
 fig3
 ```

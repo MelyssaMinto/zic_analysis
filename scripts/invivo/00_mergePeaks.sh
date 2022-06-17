@@ -5,7 +5,7 @@
 # This file merges all of the DHS sites and filters out blacklist. 
 BLACKLIST=../../../../../genomeData/mm10/bed/mm10-blacklist.bed
 
-cd ../../results/mergedPeaks/
+cd ../../results/invivo/mergedPeaks/
 files=('../../sequencing_data/preprocessed_data/DNase/*{1..3}/*.narrowPeak' '../../sequencing_data/preprocessed_data/DNase/*{7..9}/*.narrowPeak' '../../sequencing_data/preprocessed_data/DNase/*/*.narrowPeak' '../../sequencing_data/preprocessed_data/H3K27ac/*{1..2}/*.narrowPeak' '../../sequencing_data/preprocessed_data/H3K27ac/*{3..4}/*.narrowPeak' '../../sequencing_data/preprocessed_data/H3K27ac/*/*.narrowPeak' '../../sequencing_data/preprocessed_data/zic_chip/*{1..2}/*.narrowPeak' '../../sequencing_data/preprocessed_data/zic_chip/*{3..4}/*.narrowPeak' '../../sequencing_data/preprocessed_data/zic_chip/*/*.narrowPeak' '../../sequencing_data/preprocessed_data/atoh1_chip/*/*.narrowPeak' '../../sequencing_data/preprocessed_data/ctcf_p56_chip/*/*.narrowPeak' '../../sequencing_data/preprocessed_data/ctcf_p22_chip/*/*.narrowPeak' '../../sequencing_data/preprocessed_data/ctcf_p4_chip/*/*.narrowPeak' '../../sequencing_data/preprocessed_data/rad21_p56_chip/*/*.narrowPeak' '../../sequencing_data/preprocessed_data/rad21_p4_chip/*/*.narrowPeak' '../../sequencing_data/preprocessed_data/chd4_p22_chip/*/*.narrowPeak' '../../sequencing_data/preprocessed_data/chd7_p4_chip/*/*.narrowPeak' '../../sequencing_data/preprocessed_data/H2A_p22_chip/*/*.narrowPeak' '../../sequencing_data/preprocessed_data/H3_p22_chip/*/*.narrowPeak' '../../sequencing_data/preprocessed_data/smc1_p22_chip/*/*.narrowPeak')
 
 

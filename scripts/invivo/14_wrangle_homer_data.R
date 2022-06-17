@@ -8,9 +8,9 @@ library(RRHO)
 
 # Read in data ------------------------------------------------------------
 
-homer_files = list.files("../../results/homer_results/", pattern = "homer_results.tsv", recursive = T) 
+homer_files = list.files("../../results/invivo/homer_results/", pattern = "homer_results.tsv", recursive = T) 
 name = str_extract(homer_files, "[^/]+")
-homer_files = paste0("../../results/homer_results/", homer_files) 
+homer_files = paste0("../../results/invivo/homer_results/", homer_files) 
 names(homer_files) = name 
 
 
@@ -60,13 +60,13 @@ rrho_tf <- function(cond1, cond2, homer_data1, homer_data2, lims = NULL){
   
   
   # making output dir
-  system(paste0("rm -r  ../../results/peak_gene/rrho/", cond1,"v" ,cond2, "_homer"))
-  system(paste0("mkdir ../../results/peak_gene/rrho/", cond1,"v" ,cond2, "_homer"))
+  system(paste0("rm -r  ../../results/invivo/peak_gene/rrho/", cond1,"v" ,cond2, "_homer"))
+  system(paste0("mkdir ../../results/invivo/peak_gene/rrho/", cond1,"v" ,cond2, "_homer"))
   
   object = RRHO(as.data.frame(dat1), 
                 as.data.frame(dat2), 
                 labels = c(cond1, cond2), 
-                outputdir = paste0("../../results/peak_gene/rrho/",  cond1,"v" ,cond2, "_homer/"), 
+                outputdir = paste0("../../results/invivo/peak_gene/rrho/",  cond1,"v" ,cond2, "_homer/"), 
                 alternative = "enrichment", 
                 plots = T,
                 BY = T,
@@ -77,7 +77,7 @@ rrho_tf <- function(cond1, cond2, homer_data1, homer_data2, lims = NULL){
 pull_distinct_enriched <-function(cond1, cond2, homer_data1, homer_data2){
   # get the list of non overlapping tfs 
   overlappingTFs = 
-    list.files(paste0("../../results/peak_gene/rrho/", cond1,"v" ,cond2, "_homer" ), pattern = ".csv", full.names = T) %>% 
+    list.files(paste0("../../results/invivo/peak_gene/rrho/", cond1,"v" ,cond2, "_homer" ), pattern = ".csv", full.names = T) %>% 
     map_df(read_csv, col_names = F) %>% 
     dplyr::filter(!grepl("ZIC", X1)) %>% 
     pull(X1)
@@ -199,12 +199,12 @@ earlyVlate_all = runRRHO(cond1 = "early_all", cond2 = "late_all", lims = NULL)
 
 # Save table --------------------------------------------------------------
 
-earlyVlate_act$table %>% write_tsv("../../results/peak_gene/rrho/early_late_activating_homer.txt")
-early_actVrep$table %>% write_tsv("../../results/peak_gene/rrho/early_activating_repressive_homer.txt")
-earlyVlate_rep$table %>% write_tsv("../../results/peak_gene/rrho/early_late_repressive_homer.txt")
-late_actvrep$table %>% write_tsv("../../results/peak_gene/rrho/late_activating_repressive_homer.txt")
-actvrep$table %>% write_tsv("../../results/peak_gene/rrho/activating_repressive_homer.txt")
-earlyvlate$table %>% write_tsv("../../results/peak_gene/rrho/early_late_homer.txt")
-early_allVloop$table %>% write_tsv("../../results/peak_gene/rrho/early_allvloop_homer.txt")
-late_allVloop$table %>% write_tsv("../../results/peak_gene/rrho/late_allvloop_homer.txt")
-earlyVlate_all$table %>% write_tsv("../../results/peak_gene/rrho/earlyvlate_all_homer.txt")
+earlyVlate_act$table %>% write_tsv("../../results/invivo/peak_gene/rrho/early_late_activating_homer.txt")
+early_actVrep$table %>% write_tsv("../../results/invivo/peak_gene/rrho/early_activating_repressive_homer.txt")
+earlyVlate_rep$table %>% write_tsv("../../results/invivo/peak_gene/rrho/early_late_repressive_homer.txt")
+late_actvrep$table %>% write_tsv("../../results/invivo/peak_gene/rrho/late_activating_repressive_homer.txt")
+actvrep$table %>% write_tsv("../../results/invivo/peak_gene/rrho/activating_repressive_homer.txt")
+earlyvlate$table %>% write_tsv("../../results/invivo/peak_gene/rrho/early_late_homer.txt")
+early_allVloop$table %>% write_tsv("../../results/invivo/peak_gene/rrho/early_allvloop_homer.txt")
+late_allVloop$table %>% write_tsv("../../results/invivo/peak_gene/rrho/late_allvloop_homer.txt")
+earlyVlate_all$table %>% write_tsv("../../results/invivo/peak_gene/rrho/earlyvlate_all_homer.txt")

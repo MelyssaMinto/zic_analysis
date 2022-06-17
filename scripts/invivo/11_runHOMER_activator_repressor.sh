@@ -14,10 +14,10 @@
 ./helper_run_homer.sh late ../../peak_gene/late/ 500
 
  ./helper_meme.sh early ../../peak_gene/early/
-mv ../../results/MEME/early/ ../../results/MEME/early_looped/
+mv ../../results/invivo/MEME/early/ ../../results/invivo/MEME/early_looped/
 
 ./helper_meme.sh late ../../peak_gene/late/
-mv ../../results/MEME/late/ ../../results/MEME/late_looped/
+mv ../../results/invivo/MEME/late/ ../../results/invivo/MEME/late_looped/
 
 ./helper_meme.sh activating ../../peak_gene/activating/
 ./helper_meme.sh repressive ../../peak_gene/repressive/

@@ -20,7 +20,7 @@ echo ...............$SAMPLE....................
 
 # go to respective sample directory
 echo setting up directory...
-cd ../../results/homer_results/
+cd ../../results/invivo/homer_results/
 mkdir $SAMPLE
 cd $SAMPLE
 
@@ -64,7 +64,7 @@ paste ids $SAMPLE.motif.homer > $SAMPLE.homer
 #using homer to get the de novo motifs
 echo running homer..
 mkdir results
-perl $FINDMOTIFS $SAMPLE.homer mm10 results/ -size $SIZE -p 4 
+perl $FINDMOTIFS $SAMPLE.homer mm10 results/invivo/ -size $SIZE -p 4 
 
 #cleaning up files
 #rm $SAMPLE.motif.homer

@@ -10,13 +10,13 @@ library(TxDb.Mmusculus.UCSC.mm10.knownGene)
 library(EnsDb.Mmusculus.v79)
 
 # Read in data ------------------------------------------------------------
-P60vP7_zic = read_tsv("../../results/DiffExp_ZicChIP/ZicChIPDA_data.tsv")
+P60vP7_zic = read_tsv("../../results/invivo/DiffExp_ZicChIP/ZicChIPDA_data.tsv")
 
-atoh1_zic_overlap_p7 = read_tsv("../../results/mergedPeaks/zic_atoh1_p7.bed", col_names = F) 
-atoh1_zic_overlap_p60 = read_tsv("../../results/mergedPeaks/zic_atoh1_p60.bed", col_names = F) 
-atoh1_zic_overlap_static = read_tsv("../../results/mergedPeaks/zic_atoh1_static.bed", col_names = F) 
+atoh1_zic_overlap_p7 = read_tsv("../../results/invivo/mergedPeaks/zic_atoh1_p7.bed", col_names = F) 
+atoh1_zic_overlap_p60 = read_tsv("../../results/invivo/mergedPeaks/zic_atoh1_p60.bed", col_names = F) 
+atoh1_zic_overlap_static = read_tsv("../../results/invivo/mergedPeaks/zic_atoh1_static.bed", col_names = F) 
 
-atoh_peaks =  read_tsv("../../results/mergedPeaks/atoh1.bed", col_names = F)
+atoh_peaks =  read_tsv("../../results/invivo/mergedPeaks/atoh1.bed", col_names = F)
 
 
 # wrangling data ----------------------------------------------------------
@@ -50,7 +50,7 @@ P60vP7_zic_overlap =
 
 # Output ------------------------------------------------------------------
 
-P60vP7_zic_overlap %>% write_tsv("../../results/peak_gene/zic_atoh_overlap.txt")
+P60vP7_zic_overlap %>% write_tsv("../../results/invivo/peak_gene/zic_atoh_overlap.txt")
 
 
           

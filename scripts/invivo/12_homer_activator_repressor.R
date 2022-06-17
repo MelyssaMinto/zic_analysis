@@ -12,16 +12,16 @@ library(xlsx)
 # Read in data ------------------------------------------------------------
 
 # peak files
-peakFilesOfInterest = str_extract(list.files("../../results/peak_gene/", pattern = ".bed", recursive = T), "(?<=/).+(?=.bed)")
+peakFilesOfInterest = str_extract(list.files("../../results/invivo/peak_gene/", pattern = ".bed", recursive = T), "(?<=/).+(?=.bed)")
 
 # motif enrichment results
-homerResultsPath = paste0("../../results//homer_results/", gsub(".bed", "", peakFilesOfInterest) , "/results/knownResults.txt")
+homerResultsPath = paste0("../../results/invivo/homer_results/", gsub(".bed", "", peakFilesOfInterest) , "/results/knownResults.txt")
 homerResults <- homerResultsPath %>%
   map(read_tsv) 
 
 
 # DiffExp data
-DEResults <- read_tsv("../../results/DiffExp_RNA/GeneExp_data.tsv")
+DEResults <- read_tsv("../../results/invivo/DiffExp_RNA/GeneExp_data.tsv")
 
 # protein2gene name conversion
 proteinGene = read_csv("../../../../../genomeData/mm10/proteinsThatAreNotNamedAsTheirGeneNamesWithGeneNames.csv", col_names = F)
@@ -176,12 +176,12 @@ names(homerResultsClean) =  gsub(".bed", "", peakFilesOfInterest)
 # Write data --------------------------------------------------------------
 
 
-write_tsv(as.data.frame(homerResultsClean[[1]]),paste0("../../results/homer_results/", names(homerResultsClean)[1], "/homer_results.tsv"))
-write_tsv(as.data.frame(homerResultsClean[[2]]),paste0("../../results/homer_results/", names(homerResultsClean)[2], "/homer_results.tsv"))
-write_tsv(as.data.frame(homerResultsClean[[3]]),paste0("../../results/homer_results/", names(homerResultsClean)[3], "/homer_results.tsv"))
-write_tsv(as.data.frame(homerResultsClean[[4]]),paste0("../../results/homer_results/", names(homerResultsClean)[4], "/homer_results.tsv"))
-write_tsv(as.data.frame(homerResultsClean[[5]]),paste0("../../results/homer_results/", names(homerResultsClean)[5], "/homer_results.tsv"))
-write_tsv(as.data.frame(homerResultsClean[[6]]),paste0("../../results/homer_results/", names(homerResultsClean)[6], "/homer_results.tsv"))
-write_tsv(as.data.frame(homerResultsClean[[7]]),paste0("../../results/homer_results/", names(homerResultsClean)[7], "/homer_results.tsv"))
-write_tsv(as.data.frame(homerResultsClean[[8]]),paste0("../../results/homer_results/", names(homerResultsClean)[8], "/homer_results.tsv"))
+write_tsv(as.data.frame(homerResultsClean[[1]]),paste0("../../results/invivo/homer_results/", names(homerResultsClean)[1], "/homer_results.tsv"))
+write_tsv(as.data.frame(homerResultsClean[[2]]),paste0("../../results/invivo/homer_results/", names(homerResultsClean)[2], "/homer_results.tsv"))
+write_tsv(as.data.frame(homerResultsClean[[3]]),paste0("../../results/invivo/homer_results/", names(homerResultsClean)[3], "/homer_results.tsv"))
+write_tsv(as.data.frame(homerResultsClean[[4]]),paste0("../../results/invivo/homer_results/", names(homerResultsClean)[4], "/homer_results.tsv"))
+write_tsv(as.data.frame(homerResultsClean[[5]]),paste0("../../results/invivo/homer_results/", names(homerResultsClean)[5], "/homer_results.tsv"))
+write_tsv(as.data.frame(homerResultsClean[[6]]),paste0("../../results/invivo/homer_results/", names(homerResultsClean)[6], "/homer_results.tsv"))
+write_tsv(as.data.frame(homerResultsClean[[7]]),paste0("../../results/invivo/homer_results/", names(homerResultsClean)[7], "/homer_results.tsv"))
+write_tsv(as.data.frame(homerResultsClean[[8]]),paste0("../../results/invivo/homer_results/", names(homerResultsClean)[8], "/homer_results.tsv"))
 

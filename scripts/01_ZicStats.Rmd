@@ -17,6 +17,7 @@ library(ggmosaic)
 library(pheatmap)
 library(ggseqlogo)
 library(BSgenome.Mmusculus.UCSC.mm10)
+library(ggforce)
 ```
 
 ```{r}
@@ -407,10 +408,10 @@ sa3 =P60vP7_zic %>%
 
 
 
-s1 =plot_grid(sa1, sa2, sa3, lossgain, oc2, labels = c("A", "B", "C"), nrow = 1, rel_widths = c(1,2,2))
-#png("../figures/supp_figure1.png", height = 7, width = 8, units = "in", res = 300)
+s1 =plot_grid(sa1, ov2, sa2, sa3, labels = c("A", "B", "C", "D"), nrow = 2)
+png("../figures/supp_figure1.png", height = 7, width = 8, units = "in", res = 300)
 s1
-#dev.off()
+dev.off()
 ```
 
 A) Distribution of Zic peak size. Average ChIP signal of peaks at B) P7 and C) P60. D) MA plot of Zic-ChIP peaks P7 v P60. E) Number of peaks whose mean ChIP signal is 0 at P7 or P60  F,G) The number of TF families enriched at P7 and P60 

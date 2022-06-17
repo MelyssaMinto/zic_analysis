@@ -6,16 +6,16 @@
 library(tidyverse)
 
 # Read in data ------------------------------------------------------------
-fimo <- read_delim("../../results/FIMO/Zic/fimo.tsv", delim = "\t", escape_double = FALSE, trim_ws = TRUE, comment = "#")
+fimo <- read_delim("../../results/invivo/FIMO/Zic/fimo.tsv", delim = "\t", escape_double = FALSE, trim_ws = TRUE, comment = "#")
 
-zic_diff <- read_tsv("../../results/DiffExp_ZicChIP/ZicChIPDA_data.tsv")
-dnase_diff <- read_tsv("../../results/DiffExp_DNase/DNaseDA_data.tsv")
-k27ac_diff <- read_tsv("../../results/DiffExp_H3K27ac/K27ac_data.tsv")
+zic_diff <- read_tsv("../../results/invivo/DiffExp_ZicChIP/ZicChIPDA_data.tsv")
+dnase_diff <- read_tsv("../../results/invivo/DiffExp_DNase/DNaseDA_data.tsv")
+k27ac_diff <- read_tsv("../../results/invivo/DiffExp_H3K27ac/K27ac_data.tsv")
 
-zic_dnase_overlap <- read_tsv("../../results/mergedPeaks/DNase_zic_overlap.bed", col_names = F)
-zic_k27ac_overlap <- read_tsv("../../results/mergedPeaks/H3K27ac_zic_overlap.bed", col_names = F)
+zic_dnase_overlap <- read_tsv("../../results/invivo/mergedPeaks/DNase_zic_overlap.bed", col_names = F)
+zic_k27ac_overlap <- read_tsv("../../results/invivo/mergedPeaks/H3K27ac_zic_overlap.bed", col_names = F)
 
-sample_files = c("../../results/DiffExp_ZicChIP/P60vP7_DOWN.bed", "../../results/DiffExp_ZicChIP/P60vP7_NS.bed", "../../results/DiffExp_ZicChIP/P60vP7_UP.bed")
+sample_files = c("../../results/invivo/DiffExp_ZicChIP/P60vP7_DOWN.bed", "../../results/invivo/DiffExp_ZicChIP/P60vP7_NS.bed", "../../results/invivo/DiffExp_ZicChIP/P60vP7_UP.bed")
 
 
 
