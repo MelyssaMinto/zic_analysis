@@ -4,7 +4,7 @@
 # load libraries ----------------------------------------------------------
 library(tidyverse)
 library(DESeq2)
-
+# cite ashr
 
 
 # Read in data ------------------------------------------------------------
@@ -25,22 +25,18 @@ sample_info <- read_tsv("../../sequencing_data/invitro_data/rnaseq/rnaseq_kd_fil
 
 # Wrangle data ------------------------------------------------------------
 # formatting count data
-counts <- purrr::reduce(counts_list, left_join, by = "gene_names") 
-counts <- as.data.frame(counts)
-rownames(counts) <- counts$gene_names
-counts$gene_names <- NULL
-counts %>% 
-  fi
+counts <- purrr::reduce(counts_list, left_join, by = "gene_names") %>% 
+  # removing gene counting stats
+  dplyr::filter(!grepl("__", gene_names)) %>% 
+  # add gene names as rownames
+  column_to_rownames("gene_names")
+
+
 
 # formatting sample info
-sample_info <- as.data.frame(sample_info)
-sample_info <- sample_info[sample_info$run_accession %in% colnames(counts),]
-rownames(sample_info) <- sample_info$run_accession
-sample_info <- sample_info[colnames(counts),]
-
-
-sample_info <- sample_info %>%
-  mutate(day = str_split(sample_title, " ",2) %>% map_chr(1),
+sample_info = sample_info %>% 
+  dplyr::filter(run_accession %in% colnames(counts)) %>% 
+  dplyr::mutate(day = str_split(sample_title, " ",2) %>% map_chr(1),
          repn = str_split(sample_title, " ") %>% map_chr(~ .x[length(.x)]),
          group = case_when(
            day %in% c("d0","d3") ~ "WT",
@@ -50,12 +46,13 @@ sample_info <- sample_info %>%
            str_detect(sample_title, "BDNF") ~ "BDNF",
            str_detect(sample_title, "d7 CGN") ~ "WT"
          )) %>%
-  mutate(group = paste0(day,"_",group),
+  dplyr::mutate(group = paste0(day,"_",group),
          repn = paste0("rep",repn),
          run_accession = run_accession,
-         col_name = paste(group,repn,sep = "_"))
+         col_name = paste(group,repn,sep = "_")) %>% 
+  column_to_rownames("col_name")
 
-rownames(sample_info) <- sample_info$col_name
+
 colnames(counts) <- sample_info$col_name
 
 
@@ -103,12 +100,13 @@ dds_zic2 <- DESeq(dds_zic2)
 dds_d7_d0 <- DESeq(dds_d7_d0)
 dds_d7_d3 <- DESeq(dds_d7_d3)
 
+
+# > Results ---------------------------------------------------------------
 res_zic1 <- results(object = dds_zic1, alpha = 0.05)
 res_zic2 <- results(object = dds_zic2, alpha = 0.05)
 res_d7_d0 <- results(object = dds_d7_d0, alpha = 0.05)
 res_d7_d3 <- results(object = dds_d7_d3, alpha = 0.05)
 
-# > Results ---------------------------------------------------------------
 # Shrinkage
 res_zic1_ashr <- lfcShrink(dds_zic1,
                            res  = res_zic1,

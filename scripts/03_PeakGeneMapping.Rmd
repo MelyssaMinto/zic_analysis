@@ -11,7 +11,7 @@ library(tidyverse)
 library(cowplot)
 library(gridExtra)
 knitr::opts_chunk$set(echo = TRUE)
-library("ggpmisc")
+library(ggpmisc)
 library(GenomicRanges)
 library(rtracklayer)
 library(Gviz) 
@@ -19,11 +19,12 @@ library(TxDb.Mmusculus.UCSC.mm10.knownGene)
 library(biomaRt)
 library(org.Mm.eg.db)
 library(forcats)
-library(ggpubr)
 library(GenomicInteractions)
 library(rstatix)
 options(ucscChromosomeNames=FALSE) 
 library(ggridges)
+library(ggpubr)
+library(readxl)
 ```
 
 ```{r read data in}
@@ -31,7 +32,7 @@ library(ggridges)
 mapped_data = read_tsv("../results/FinalTables/mapped_data.txt")
 zic_loop_data = read_tsv("../results/FinalTables/zic_loop_data.txt")
 # gene expression data
-gene_expr = read_tsv("../results/DiffExp_RNA/normalized_counts.tsv")
+gene_expr = read_tsv("../results/invivo//DiffExp_RNA/normalized_counts.tsv")
 # zic peak data (differential)
 zic_peak_data <- read_delim("../results/FinalTables/zic_peak_data.txt", delim = "\t", escape_double = FALSE, trim_ws = TRUE)
 
@@ -41,7 +42,7 @@ loop_data_adult <- read_delim("../sequencing_data/Yamada/combined_MAPS_peaks.txt
                         delim = "\t", escape_double = FALSE, trim_ws = TRUE, col_names = F) %>% 
                     dplyr::mutate(loop_id = paste0("loop_", 1:n())) 
 # > P4 loops derived from Hi-C. source: https://www.nature.com/articles/s41467-021-25846-3
-loop_data_young <- read_excel("/media/west-lab-share/Melyssa_Minto/Cerebellum/zic_analysis/sequencing_data/Reddy/GSE164360_Hi-C_Summary.xlsx") %>% 
+loop_data_young <- read_excel("../sequencing_data/Reddy/GSE164360_Hi-C_Summary.xlsx") %>% 
     dplyr::select(ends_with(c("A", "B"))) %>% 
   set_names(paste0("X",1:6)) %>% 
   dplyr::mutate(loop_id = paste0("loop_", 1:n())) %>% 
@@ -104,9 +105,58 @@ plot_track <- function(gene, tracks,  expand_l= 0, expand_r = 0, ylim = c(0,3)){
   
 }
 
+plot_zic_ratio <- function(genes){
+  
+  plt1 = dist_prox %>%   
+  dplyr::filter(gene_name %in% genes) %>% 
+  dplyr::mutate(color = case_when(gene_sig == "UP" ~ "red",
+                                  gene_sig == "DOWN" ~ "blue",
+                                  gene_sig == "N.S." ~ "black",
+                                  TRUE ~ "grey"),
+                  gene_label = paste0('<span  style="color:', color, '"', ">", gene_name, "</span>")) %>%
+  ggplot(aes(x = zic_sig, y = ratio, fill = anchor_type, label = count)) +
+  geom_col(position = position_dodge2(width = 0.9, preserve = "single")) + 
+  geom_text(position = position_dodge2(width = 0.9, preserve = "single"), color = "white", vjust = 1, fontface = "bold")+
+  theme_bw() +
+  scale_fill_manual(values = c( "grey", "black")) +
+  scale_x_discrete(labels = c("DOWN" = "P7","N.S."= "Static","UP" = "P60"))+
+  facet_wrap(~gene_label) +
+  labs(x = "Differential Zic Region", y = "% of Peaks", fill = "") +
+  theme(strip.background = element_rect( fill = "white"),
+        strip.text = element_markdown(),
+        strip.text.y  = element_markdown(),
+        strip.text.x  = element_markdown(),
+        legend.position = "bottom")
+  
+  plt2 = dist_prox %>%   
+  dplyr::filter(gene_name %in% genes) %>% 
+  dplyr::mutate(color = case_when(gene_sig == "UP" ~ "red",
+                                  gene_sig == "DOWN" ~ "blue",
+                                  gene_sig == "N.S." ~ "black",
+                                  TRUE ~ "grey"),
+                  gene_label = paste0('<span  style="color:', color, '"', ">", gene_name, "</span>")) %>%
+  ggplot(aes(x = zic_sig, y = count, fill = anchor_type, label = paste0(round(ratio, 2)*100, "%") )) +
+  geom_col(position = position_dodge2(width = 0.9, preserve = "single")) + 
+  geom_text(position = position_dodge2(width = 0.9, preserve = "single"), color = "white", vjust = 1, fontface = "bold")+
+  theme_bw() +
+  scale_fill_manual(values = c( "grey", "black")) +
+  scale_x_discrete(labels = c("DOWN" = "P7","N.S."= "Static","UP" = "P60"))+
+  facet_wrap(~gene_label) +
+  labs(x = "Differential Zic Region", y = "no. of Peaks", fill = "") +
+  theme(strip.background = element_rect( fill = "white"),
+        strip.text = element_markdown(),
+        strip.text.y  = element_markdown(),
+        strip.text.x  = element_markdown(),
+        legend.position = "bottom")
+  
+  return(list(p1 = plt1, p2 = plt2))
+}
+
+
 ```
 
 # Supplemental Figure 1
+
 ```{r supp fig 1}
 # > Anchor Mapping Stats ---------------------------------------------------
 # how many anchors are mapped to genes
@@ -204,6 +254,7 @@ plot_grid(sa1,sb1, nrow = 1, labels = LETTERS[1:4])
 Supplemental Figure 2. Mapping statitistics of A) Nearest gene, B) Zic, C) DNase, and D) H3K27ac peaks in H4Kme3 PLAC-seq derived chroamtin loops
 
 # Supplemental Figure 2
+
 ```{r supp fig 2, fig.height=7, fig.width=7}
 # > How many peaks per genes ----------------------------------------------
 
@@ -270,12 +321,12 @@ plot_grid(sa2,
           rel_widths = c(2, 1))
 #dev.off()
 ```
-Supplemental Figure 3. A) Count of Zic peaks mapped to gene. B) Distribution of number of zic peaks by gene regulation.  Scatterplots of C) Mean expression and D) Log2FC of genes against Number of zic peaks show that there is no correlation between number of zic peaks and gene degree of gene regulation. 
 
-
+Supplemental Figure 3. A) Count of Zic peaks mapped to gene. B) Distribution of number of zic peaks by gene regulation. Scatterplots of C) Mean expression and D) Log2FC of genes against Number of zic peaks show that there is no correlation between number of zic peaks and gene degree of gene regulation.
 
 # Figure 2
-```{r }
+
+```{r zic ratio fig.height=8, fig.width=12}
 gene_loop = loop_annotation %>% 
   dplyr::select(id, proximal= anchor_name.x, distal = anchor_name.y, gene_name) %>% 
   distinct() %>% 
@@ -305,24 +356,62 @@ dist_prox = zic_loop_data %>% dplyr::rename(sequence_name = zic_peak) %>%
   ungroup() %>% 
   group_by(gene_name, zic_sig) %>% 
   dplyr::mutate(ratio = count / total) %>% 
-  ungroup() 
-  
+  ungroup() %>% 
+  left_join(n_peaks_to_gene)
+```
 
-plot_zic_ratio <- function(genes){
-  dist_prox %>%   
-  dplyr::filter(gene_name %in% genes) %>% 
-  ggplot(aes(x = anchor_type, y = ratio, fill = zic_sig)) +
-  geom_col(position = position_dodge2(width = 0.9, preserve = "single")) + 
+```{r zic_ratio fig.height=8, fig.width=12}
+test_list  = n_peaks_to_gene %>% 
+  top_n(10, n) %>% 
+   pull(gene_name)
+
+plot_zic_ratio(test_list)$p2
+
+ dist_prox %>%   
+   dplyr::filter(!is.na(gene_sig)) %>% 
+   group_by(anchor_type, gene_sig, zic_sig) %>% 
+   summarize(mean_count= mean(count),
+             mean_ratio = mean(ratio),
+             sd_count = sd(count),
+             sd_ratio = sd(ratio)) %>% 
+   ungroup() %>% 
+   ggplot(aes(x = zic_sig, y = mean_count,ymin = mean_count - sd_count, ymax = mean_count + sd_count, fill = anchor_type)) +
+  geom_col(position = position_dodge2(width = 0.9)) + 
+  geom_errorbar(position = position_dodge2(width = 0.9)) +
   theme_bw() +
-  scale_fill_manual(values = c( "blue", "black","red"),labels = c("UP" = "P60", "N.S." = "Static","DOWN" = "P7")) +
-  facet_wrap(~gene_name) +
-  labs(x = "Anchor", y = "# of Peaks")
-}
+  scale_fill_manual(values = c( "grey", "black")) +
+  scale_x_discrete(labels = c("DOWN" = "P7","N.S."= "Static","UP" = "P60"))+
+  facet_wrap(~gene_sig) +
+  labs(x = "Differential Zic Region", y = "no. of Peaks", fill = "") +
+  theme(strip.background = element_rect( fill = "white"),
+        strip.text = element_markdown(),
+        strip.text.y  = element_markdown(),
+        strip.text.x  = element_markdown(),
+        legend.position = "bottom")
+ 
+ 
+  dist_prox %>%   
+   dplyr::filter(!is.na(gene_sig)) %>% 
+   group_by(anchor_type, gene_sig, zic_sig) %>% 
+   summarize(mean_count= mean(count),
+             mean_ratio = mean(ratio),
+             sd_count = sd(count),
+             sd_ratio = sd(ratio)) %>% 
+   ungroup() %>% 
+   ggplot(aes(x = zic_sig, y = mean_ratio,ymin = mean_ratio - sd_ratio, ymax = mean_ratio + sd_ratio, fill = anchor_type)) +
+  geom_errorbar(position = position_dodge2(width = 0.9)) +
+      geom_col(position = position_dodge2(width = 0.9)) + 
 
-
-plot_zic_ratio(c("Chd7"))
-
-
+  theme_bw() +
+  scale_fill_manual(values = c( "grey", "black")) +
+  scale_x_discrete(labels = c("DOWN" = "P7","N.S."= "Static","UP" = "P60"))+
+  facet_wrap(~gene_sig) +
+  labs(x = "Differential Zic Region", y = "prop. of Peaks", fill = "") +
+  theme(strip.background = element_rect( fill = "white"),
+        strip.text = element_markdown(),
+        strip.text.y  = element_markdown(),
+        strip.text.x  = element_markdown(),
+        legend.position = "bottom")
 ```
 
 ```{r schematic}
@@ -398,7 +487,6 @@ a1
 a2
 ```
 
-
 ```{r panel a alt, fig.height=8, fig.width=4}
 median.quartile <- function(x){
   out <- quantile(x, probs = c(0.25,0.5,0.75))
@@ -441,9 +529,6 @@ a5 = df %>%
 plot_grid(a3, a4, a5, ncol = 1)
 ```
 
-
-
-
 ```{r panel b, fig.height=4, fig.width=2.5}
 # > nearest gene categorical ----------------------------------------------
 
@@ -475,8 +560,6 @@ b
 
 
 ```
-
-
 
 ```{r panel c, fig.height=4, fig.width=8}
 
@@ -522,8 +605,6 @@ c = mapped_data %>%
 c
 
 ```
-
-
 
 ```{r panel d, fig.width=15, fig.height=6}
 ## prepare data
@@ -609,14 +690,19 @@ p60_rna_bw <-  DataTrack(import.bw("../sequencing_data/preprocessed_data/RNA/p60
 # plot_track("Chd7", tracks,  expand_l = 10000, expand_r = 250000)
 
 
-png("../figures/fig3_d.png", units = "in", height = 6, width = 15, res = 300)
+#png("../figures/fig3_d.png", units = "in", height = 6, width = 15, res = 300)
 plot_track("Nr4a3", tracks,  expand_l = 600000, expand_r = 5000, ylim = c(0,2))
-dev.off()
+#dev.off()
+```
 
+
+```{r panel d, fig.width=15, fig.height=6}
 d = rasterGrob(readPNG("../figures/fig3_d.png"))
 
 ```
+
 ![](../figures/fig3_d.png)
+
 ```{r figure 2, fig.height=15, fig.width=15}
 
 
@@ -627,10 +713,11 @@ fig3 = plot_grid( plot_grid( sch,  plot_grid(b, a1, ncol = 1, labels = c("B", "C
            rel_heights = c(.50, .50)
            )
 
-png("../figures/figure3.png", height = 12, width = 12, res = 300, units = "in")
+#png("../figures/figure3.png", height = 12, width = 12, res = 300, units = "in")
 fig3
-dev.off()
+#dev.off()
 
 fig3
 ```
+
 Figure 2. Zic peaks were mapped to genes via H4Kme3 mediated chromatin loops. A) Overall number of genes mapped to Zic peaks that are enriched at P7, P60, and Statically bound. B) Mean expression of genes at P7 and P60 mapped to P7 and P60 enriched Zic peaks. C) Number of Zic peaks mapped to genes that are differentially expressed between P7 and P60. D) Example tracks of H4Kme3 loops, Zic, DHS, H3k27ac, and Gene expression at P7 and P60
