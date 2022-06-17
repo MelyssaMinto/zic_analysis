@@ -75,44 +75,44 @@ as.data.frame(counts(dds, normalized = T)) %>%
   dplyr::mutate(p7_mean = rowMeans(dplyr::select(., contains("P7"))),
          p60_mean = rowMeans(dplyr::select(.,contains("P60")))) %>% 
   dplyr::select(PeakID, p7_mean, p60_mean) %>% 
-  full_join(P60vP7_zic) %>% write_tsv("../../results/DiffExp_ZicChIP/ZicChIPDA_data.tsv")
+  full_join(P60vP7_zic) %>% write_tsv("../../results/invivo/DiffExp_ZicChIP/ZicChIPDA_data.tsv")
 
 
 #> bed files for P60 peaks
 P60vP7_zic %>% 
   dplyr::filter(zic_sig %in% "UP") %>% 
   dplyr::select(Chr, Start, End) %>% 
-  write_tsv("../../results/DiffExp_ZicChIP/P60vP7_UP.bed",col_names = FALSE)
+  write_tsv("../../results/invivo/DiffExp_ZicChIP/P60vP7_UP.bed",col_names = FALSE)
 P60vP7_zic %>% 
   dplyr::filter(zic_sig %in% "UP") %>% 
   dplyr::select(Chr, Start, End) %>% 
   dplyr::mutate(name = ".", score = 1, strand = ".") %>% 
-  write_tsv("../../results/DiffExp_ZicChIP/late/late.bed",col_names = FALSE)
+  write_tsv("../../results/invivo/DiffExp_ZicChIP/late/late.bed",col_names = FALSE)
 
 #> bed files for P7 peaks
 P60vP7_zic %>% 
   dplyr::filter(zic_sig %in% "DOWN") %>% 
   dplyr::select(Chr, Start, End) %>% 
-  write_tsv("../../results/DiffExp_ZicChIP/P60vP7_DOWN.bed",col_names = FALSE)
+  write_tsv("../../results/invivo/DiffExp_ZicChIP/P60vP7_DOWN.bed",col_names = FALSE)
 
 P60vP7_zic %>% 
   dplyr::filter(zic_sig %in% "DOWN") %>% 
   dplyr::select(Chr, Start, End) %>% 
   dplyr::mutate(name = ".", score = 1, strand = ".") %>% 
-  write_tsv("../../results/DiffExp_ZicChIP/early/early.bed",col_names = FALSE)
+  write_tsv("../../results/invivo/DiffExp_ZicChIP/early/early.bed",col_names = FALSE)
 
 
 #> bed files for static peaks
 P60vP7_zic %>% 
   dplyr::filter(zic_sig %in% "N.S.") %>% 
   dplyr::select(Chr, Start, End) %>% 
-  write_tsv("../../results/DiffExp_ZicChIP/P60vP7_NS.bed",col_names = FALSE)
+  write_tsv("../../results/invivo/DiffExp_ZicChIP/P60vP7_NS.bed",col_names = FALSE)
 
 P60vP7_zic %>% 
   dplyr::filter(zic_sig %in% "N.S.") %>% 
   dplyr::select(Chr, Start, End) %>% 
   dplyr::mutate(name = ".", score = 1, strand = ".") %>% 
-  write_tsv("../../results/DiffExp_ZicChIP/static/static.bed",col_names = FALSE)
+  write_tsv("../../invivo/results/DiffExp_ZicChIP/static/static.bed",col_names = FALSE)
 
 # > Plotting --------------------------------------------------------------
 nums = table(P60vP7_zic$zic_sig)
@@ -157,7 +157,7 @@ sample_sheet = SAMPLESHEET %>%
   dplyr::mutate(group = ifelse(developmental_stage %in% "Postnatal day 7 (P7)", "P7", "P60"))
 
 # read in merged peak file to get reads from
-merged <- read_delim("../../results/mergedPeaks/DNase.bed", "\t", escape_double = FALSE, col_names = FALSE, trim_ws = TRUE)
+merged <- read_delim("../../results/invivo/mergedPeaks/DNase.bed", "\t", escape_double = FALSE, col_names = FALSE, trim_ws = TRUE)
 
 
 # formatting as gtf (geneID, Chr, Start, End, Strand)
@@ -201,7 +201,7 @@ P60vP7_DNase = results(DNase_dds, contrast = c("group", "P60", "P7"), tidy = TRU
 
 
 # save results
-P60vP7_DNase %>% write_tsv("../../results/DiffExp_DNase/DNaseDA_data.tsv")
+P60vP7_DNase %>% write_tsv("../../results/invivo/DiffExp_DNase/DNaseDA_data.tsv")
 
 # > Plotting --------------------------------------------------------------
 nums = table(P60vP7_DNase$dnase_sig)
@@ -246,7 +246,7 @@ sample_sheet = SAMPLESHEET %>%
   dplyr::mutate(group = ifelse(developmental_stage %in% "Postnatal day 7 (P7)", "P7", "P60"))
 
 # read in merged peak file to get reads from
-merged <- read_delim("../../results/mergedPeaks/H3K27ac.bed", "\t", escape_double = FALSE, col_names = FALSE, trim_ws = TRUE)
+merged <- read_delim("../../results/invivo/mergedPeaks/H3K27ac.bed", "\t", escape_double = FALSE, col_names = FALSE, trim_ws = TRUE)
 
 
 # formatting as gtf (geneID, Chr, Start, End, Strand)
@@ -289,7 +289,7 @@ P60vP7_K27ac = results(k27ac_dds, contrast = c("group", "P60", "P7"), tidy = TRU
                                       TRUE ~ "N.S."))
 
 # save results
-P60vP7_K27ac %>% write_tsv("../../results/DiffExp_H3K27ac/K27ac_data.tsv")
+P60vP7_K27ac %>% write_tsv("../../results/invivo/DiffExp_H3K27ac/K27ac_data.tsv")
 
 # > Plotting --------------------------------------------------------------
 nums = table(P60vP7_K27ac$k27ac_sig)
@@ -373,11 +373,11 @@ as.data.frame(counts(dds, normalized = T)) %>%
   dplyr::mutate(p7_mean = rowMeans(dplyr::select(., starts_with("p7"))),
          p60_mean = rowMeans(dplyr::select(.,starts_with("p60")))) %>% 
   dplyr::select(SYMBOL, p7_mean, p60_mean) %>% 
-  full_join(P60vP7_GE) %>% write_tsv("../../results/DiffExp_RNA/GeneExp_data.tsv")
+  full_join(P60vP7_GE) %>% write_tsv("../../results/invivo/DiffExp_RNA/GeneExp_data.tsv")
 
 
-as.data.frame(counts(dds, normalized = T)) %>% dplyr::mutate(SYMBOL = rownames(.)) %>%  relocate(SYMBOL) %>% write_tsv("../../results/DiffExp_RNA/normalized_counts.tsv")
-as.data.frame(counts(dds, normalized = F)) %>% dplyr::mutate(SYMBOL = rownames(.)) %>%  relocate(SYMBOL) %>% write_tsv("../../results/DiffExp_RNA/raw_counts.tsv")
+as.data.frame(counts(dds, normalized = T)) %>% dplyr::mutate(SYMBOL = rownames(.)) %>%  relocate(SYMBOL) %>% write_tsv("../../results/invivo/DiffExp_RNA/normalized_counts.tsv")
+as.data.frame(counts(dds, normalized = F)) %>% dplyr::mutate(SYMBOL = rownames(.)) %>%  relocate(SYMBOL) %>% write_tsv("../../results/invivo/DiffExp_RNA/raw_counts.tsv")
 
 # > Plotting --------------------------------------------------------------
 nums = table(P60vP7_GE$gene_sig)

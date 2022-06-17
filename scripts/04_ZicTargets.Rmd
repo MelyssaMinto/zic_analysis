@@ -55,11 +55,8 @@ go_results =  load("../results/invitro/figure_invitro/go_cat.RData")
 Zic1 log2FC vs number of in vitro peaks
 ```{r, fig.height=8, fig.width=12}
 a = invitro_data %>% 
-  dplyr::select( gene_names, dev_log2foldchange, dev_padj,  zic_peak) %>% 
+  dplyr::select( gene_names, dev_log2foldchange, dev_padj,  zic_peak, num_peaks) %>% 
   distinct() %>% 
-  group_by(gene_names) %>% 
-  dplyr::mutate(num_peaks = n_distinct(zic_peak)) %>%
-  ungroup() %>% 
   dplyr::select(-zic_peak) %>% 
   dplyr::mutate(dev_sig = ifelse(abs(dev_log2foldchange) >=2 & dev_padj < 0.05, "sig", "ns")) %>% 
   distinct() %>%
@@ -73,11 +70,8 @@ a = invitro_data %>%
 
 
 b = invitro_data %>% 
-  dplyr::select(id, gene_names, log2foldchange, padj, zic_peak) %>% 
+  dplyr::select(id, gene_names, log2foldchange, padj, zic_peak, num_peaks) %>% 
   distinct() %>% 
-  group_by(gene_names) %>% 
-  mutate(num_peaks = n_distinct(zic_peak)) %>%
-  ungroup() %>% 
   dplyr::select(-zic_peak) %>% 
   dplyr::mutate(kd_sig = ifelse(abs(log2foldchange) >=2 & padj < 0.05, "sig", "ns")) %>% 
   distinct() %>% 
@@ -101,11 +95,8 @@ Zic1 KD/Ctrl vs D7/D3
 
 ```{r, fig.height=8, fig.width=12}
 c = invitro_data %>% 
-  dplyr::select(zic_peak, id, dev_log2foldchange,log2foldchange,gene_names, bothKD, cat ) %>% 
+  dplyr::select(zic_peak, id, dev_log2foldchange,log2foldchange,gene_names, bothKD, cat, num_peaks ) %>% 
   distinct() %>% 
-  group_by(gene_names) %>% 
-  mutate(num_peaks = n_distinct(zic_peak)) %>%
-  ungroup() %>%
   dplyr::select(-zic_peak) %>% 
   distinct() %>% 
   ggplot(aes( x = dev_log2foldchange, y = log2foldchange, label = gene_names, color = bothKD, size = num_peaks)) +
@@ -133,42 +124,75 @@ invitro_data %>%
 
 
 
-```{r, fig.width= 10, fig.height=6}
-d1 = dotplot(g_bp) + 
-  theme(axis.text.y = element_text(size = 11), axis.text.x = element_text(size =11, angle = 45, hjust  = 1)) + 
+```{r, fig.width= 6, fig.height=8}
+
+
+# d1 = dotplot(g_bp) + 
+#   theme(axis.text.y = element_text(size = 11), axis.text.x = element_text(size =11, angle = 45, hjust  = 1)) + 
+#   scale_y_discrete(labels = function(x) str_wrap(x, width = 25)) +
+#   scale_x_discrete(labels = function(x) str_wrap(x, width = 15)) 
+# 
+# cnetplot(g_mf)
+# cnetplot(g_bp)
+# cnetplot(g_cc)
+# 
+# cnetplot(g_cat_mf)
+# cnetplot(g_cat_bp)
+# cnetplot(g_cat_cc)
+# 
+# cnetplot(zdd_t_mf)
+# cnetplot(zdd_t_bp)
+# cnetplot(zdd_t_cc)
+# 
+# 
+# 
+# dotplot(g_cat_bp) + theme(axis.text.y = element_text(size = 11), axis.text.x = element_text(size =11, angle = 45, hjust  = 1)) + 
+#   scale_y_discrete(labels = function(x) str_wrap(x, width = 25)) +
+#   scale_x_discrete(labels = function(x) str_wrap(x, width = 15)) 
+# dotplot(g_bp) + 
+#   theme(axis.text.y = element_text(size = 11), axis.text.x = element_text(size =11, angle = 45, hjust  = 1)) + 
+#   scale_y_discrete(labels = function(x) str_wrap(x, width = 25)) +
+#   scale_x_discrete(labels = function(x) str_wrap(x, width = 15)) 
+# dotplot(g_mf) + 
+#   theme(axis.text.y = element_text(size = 11), axis.text.x = element_text(size =11, angle = 45, hjust  = 1)) + 
+#   scale_y_discrete(labels = function(x) str_wrap(x, width = 25)) +
+#   scale_x_discrete(labels = function(x) str_wrap(x, width = 15)) 
+# dotplot(g_cc) + 
+#   theme(axis.text.y = element_text(size = 11), axis.text.x = element_text(size =11, angle = 45, hjust  = 1)) + 
+#   scale_y_discrete(labels = function(x) str_wrap(x, width = 25)) +
+#   scale_x_discrete(labels = function(x) str_wrap(x, width = 15)) 
+# dotplot(g_cat_mf) + theme(axis.text.y = element_text(size = 11), axis.text.x = element_text(size =11, angle = 45, hjust  = 1)) + 
+#   scale_y_discrete(labels = function(x) str_wrap(x, width = 25)) +
+#   scale_x_discrete(labels = function(x) str_wrap(x, width = 15)) 
+# dotplot(g_cat_cc) + theme(axis.text.y = element_text(size = 11), axis.text.x = element_text(size =11, angle = 45, hjust  = 1)) + 
+#   scale_y_discrete(labels = function(x) str_wrap(x, width = 25)) +
+#   scale_x_discrete(labels = function(x) str_wrap(x, width = 15)) 
+# dotplot(zdd_t_bp) + theme(axis.text.y = element_text(size = 11), axis.text.x = element_text(size =11, angle = 45, hjust  = 1)) + 
+#   scale_y_discrete(labels = function(x) str_wrap(x, width = 25)) +
+#   scale_x_discrete(labels = function(x) str_wrap(x, width = 15)) 
+# 
+# dotplot(zdd_t_cc) + theme(axis.text.y = element_text(size = 11), axis.text.x = element_text(size =11, angle = 45, hjust  = 1)) + 
+#   scale_y_discrete(labels = function(x) str_wrap(x, width = 25)) +
+#   scale_x_discrete(labels = function(x) str_wrap(x, width = 15)) 
+
+d1 = dotplot(zdd_t_bp) + 
+  theme(axis.text.y = element_text(size = 11), axis.text.x = element_text(size =11)) + 
   scale_y_discrete(labels = function(x) str_wrap(x, width = 25)) +
-  scale_x_discrete(labels = function(x) str_wrap(x, width = 15)) 
+  scale_x_discrete( labels = str_wrap(c("Fail to Up-regulate", "Fail to Down-regulate"), width = 15)) +
+  scale_color_viridis_c(option = "magma")
 
-d2 = dotplot(g_mf) + theme(axis.text.y = element_text(size = 11)) + scale_y_discrete(labels = function(x) str_wrap(x, width = 25))
-d3 = dotplot(g_cc) + theme(axis.text.y = element_text(size = 11)) + scale_y_discrete(labels = function(x) str_wrap(x, width = 25))
+d2 = cnetplot(zdd_t_bp, showCategory = 5, color_gene = "green", cex_label_gene = 1.25, cex_label_category = 1.6, layout = "fr") + 
+  scale_fill_grey(limits = c("Up", "Down"), labels = c("Fail to Up-regulate", "Fail to Down-regulate")) 
 
-d1
+d2
 
-dotplot(g_cat_bp) + facet_grid(~dev_sig, scales = "free_x")+
-theme(axis.text.y = element_text(size = 11), 
-      axis.text.x = element_text(size =11, angle = 45, hjust  = 1)) + 
-  #scale_y_discrete(labels = function(x) str_wrap(x, width = 25)) +
-  scale_x_discrete(labels = function(x) str_wrap(x, width = 15)) 
+plot_grid(d1, d2, ncol = 1)
 
 
-cnetplot(g_cat_bp)
-
-
-cnetplot(g_mf)
-cnetplot(g_bp)
-cnetplot(g_cc)
-
+ 
+  
 ```
-```{r, fig.width=12, fig.height=12}
-xx <- enrichplot::pairwise_termsim(g_mf)
-emapplot(xx)
 
-xx <- enrichplot::pairwise_termsim(g_bp)
-emapplot(xx)
-
-xx <- enrichplot::pairwise_termsim(g_cc)
-emapplot(xx)
-```
 
 
 
@@ -182,30 +206,15 @@ Adding in vitro n peaks
   
 plt_dat = invitro_data %>% 
   # select data
-  dplyr::select(ends_with(c("hange", "adj")),  zic_peak, gene_names, bothKD, cat ) %>% 
+  dplyr::select(ends_with(c("hange", "adj")),  zic_peak, gene_names, bothKD, cat , num_peaks, dev_sig, zic_sig) %>% 
   distinct() %>% 
   # color genes by affected KD 
   dplyr::mutate(gene_labels = case_when(bothKD == "Zic1 KD" ~ paste0('<span style="color:#143589">', gene_names,'</span>' ),
                                        bothKD == "Zic2 KD" ~ paste0('<span style="color:#E1BE6A">', gene_names,'</span>' ),
                                        bothKD == "Zic1 & Zic2 KD" ~ paste0('<span style="color: #40B0A6">', gene_names,'</span>' ))) %>% 
-  
-   # count peaks and order by npeaks
-  group_by(gene_names) %>% 
-  dplyr::mutate(num_peaks = n_distinct(zic_peak)) %>%
-  ungroup() %>%
+
   dplyr::mutate(gene_names = fct_reorder(gene_names, num_peaks)) %>%
   dplyr::mutate(gene_labels = fct_reorder(gene_labels, num_peaks)) %>%
-  # create differential cut offs
-  dplyr::mutate(dev_sig = case_when( dev_log2foldchange > 2 & dev_padj < 0.05 ~ "Up",
-                                     dev_log2foldchange < -2 & dev_padj < 0.05 ~ "Down",
-                                     TRUE ~ "N.S.")) %>% 
-  dplyr::mutate(kd_sig = case_when( log2foldchange > 2 & padj < 0.05 ~ "Up",
-                                     log2foldchange < -2 & padj < 0.05 ~ "Down",
-                                     TRUE ~ "N.S.")) %>% 
-  dplyr::mutate(zic_sig = case_when( zic_peak_log2FoldChange > 0 & zic_peak_padj < 0.05 ~ "Up",
-                                     zic_peak_log2FoldChange < 0 & zic_peak_padj < 0.05 ~ "Down",
-                                     TRUE ~ "Static")) %>% 
-  
   # filter for plot
   dplyr::select(gene_names,gene_labels, zic_peak, num_peaks, ends_with("sig"), cat) %>% 
   distinct() %>% 
@@ -255,7 +264,7 @@ e2 = plt_dat %>%
   # plot
   ggplot(aes(y = gene_labels, fill =zic_sig))+
   geom_bar(stat = "count") +
-  facet_grid(dev_sig~cat, scales = "free", space = "free")+
+  facet_grid(dev_sig~cat, scales = "free", space = "free", labeller = labeller(dev_sig = c("Down" = "Fail to Down-regulate", "Up"="Fail to Up-regulate")))+
   scale_fill_manual(values = c("Up"="#D81B60","Down"="#1E88E5","Static" ="gray")) +
   theme_classic() + 
   labs(y = "", x = "# Zic Peaks Mapped to Gene", fill = "DIV7/DIV3") +
@@ -273,11 +282,18 @@ e = plot_grid(plot_grid(e1, e2),
   
 e
 ```
+```{r}
+plt_dat %>% 
+  dplyr::select(gene_names, cat) %>% 
+  distinct() %>% 
+  group_by(cat) %>% 
+  dplyr::count()
+```
 
 ```{r, fig.width=12, fig.height=15}
-
+d = plot_grid(d1, d2, labels = c("C", "D"), ncol =1)
 fig4 = plot_grid(c,
-          plot_grid(d1, e,ncol = 2, rel_widths = c(1,1), labels = c("B", "C")),
+          plot_grid(e2, d,ncol = 2, rel_widths = c(1,1), labels = c("B", "")),
           ncol =1,
           rel_heights = c(.4, .6),
           labels = "A")
