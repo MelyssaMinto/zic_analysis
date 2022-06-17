@@ -68,7 +68,7 @@ To determine whether the Zic1/2 ChIP was capturing differences in Zic1 and Zic2 
 
 \begin{figure*}[!ht]
 \centering
-\includegraphics[width=.95\textwidth]{Figures/figure2_alt.png}
+\includegraphics[width=.95\textwidth]{../figures/figure2.png}
 \caption{A) Schematic for finding disitnct TF enrichment between two peaksets. Distinct TFs enriched between early and late regulatory modes. A ranked hyper-geometric overlap test was performed to identify the TFs distinctly enriched in each set. Then the proteins were mapped to their respective gene expression. C) Distinctly enriched B) motifs and C) ChIP overlap between early and late zic binding. D) E) Log fold change of genes mapped to distinct TFs.  }
 \label{fig:DistinctTFs}
 \end{figure*}
@@ -156,7 +156,7 @@ To validate the predicted co-factors of Zic in early and late CGN development, w
 \subsection*{Mapping Peaks to Genes via chromatin loops to determine enhancers mediated by Zic}
 
 \begin{figure*}[!ht]
-\includegraphics[width=.95\textwidth]{Figures/figure3.png}
+\includegraphics[width=.95\textwidth]{../figures/figure3.png}
 \caption{Zic peaks were mapped to genes via H3K4me3 mediated chromatin loops. A) Overall number of genes mapped to Zic peaks that are enriched at P7, P60, and Statically bound. B) Mean expression of genes at P7 and P60 mapped to P7 and P60 enriched Zic peaks. C) Top 50 number of Zic peaks mapped to genes that are differentially expressed between P7 and P60. D) Example tracks of H4Kme3 loops, Zic, DHS, H3k27ac, and Gene expression at P7 and P60}
 \label{fig:PeakMapping}
 \end{figure*}
@@ -197,7 +197,7 @@ Zic peaks were mapped to genes that were up-regulated and down-regulated consist
 https://www.overleaf.com/project/61f2d442e6849f426be14e45
 
 \begin{figure*}[!ht]
-\includegraphics[width=.95\textwidth]{Figures/figure4.png}
+\includegraphics[width=.95\textwidth]{../figures/figure4.png}
 \caption{}
 \label{fig:ZicKD}
 \end{figure*}
@@ -271,7 +271,7 @@ Scripts used for this analysis can be found in this GitHub repository: \href{htt
 
 \begin{figure*}[ht]
 \centering
-\includegraphics[width=.90\linewidth]{Figures/supp_figure1.png}
+\includegraphics[width=.90\linewidth]{../figures/supp_figure1.png}
 \caption{A) Distribution of Zic peak size. Average ChIP signal of peaks at B) P7 and C) P60. D) MA plot of Zic-ChIP peaks P7 v P60. E) Number of peaks whose mean ChIP signal is 0 at P7 or P60}
 \label{fig:ZicStats}
 \end{figure*}
@@ -279,7 +279,7 @@ Scripts used for this analysis can be found in this GitHub repository: \href{htt
 
 \begin{figure*}[ht]
 \centering
-\includegraphics[width=.90\linewidth]{Figures/supp_figure2.png}
+\includegraphics[width=.90\linewidth]{../figures/supp_figure2.png}
 \caption{Mapping statistics of A) Nearest gene, B) Zic, C) DNase, and D) H3K27ac peaks in H4Kme3 PLAC-seq derived chromatin loops.}
 \label{fig:MappingStats}
 \end{figure*}
@@ -287,7 +287,7 @@ Scripts used for this analysis can be found in this GitHub repository: \href{htt
 
 \begin{figure*}[ht]
 \centering
-\includegraphics[width=.90\linewidth]{Figures/supp_figure3.png}
+\includegraphics[width=.90\linewidth]{../figures/supp_figure3.png}
 \caption{ A) Count of Zic peaks mapped to gene. B) Distribution of number of Zic peaks by gene regulation.  Scatter-plots of C) Mean expression and D) Log2FC of genes against Number of Zic peaks show that there is no correlation between number of Zic peaks and gene degree of gene regulation. }
 \label{fig:nPeakstoGenes}
 \end{figure*}
@@ -295,21 +295,21 @@ Scripts used for this analysis can be found in this GitHub repository: \href{htt
 
 \begin{figure*}[ht]
 \centering
-\includegraphics[width=.95\textwidth]{Figures/supp_figure4.png}
+\includegraphics[width=.95\textwidth]{../figures/supp_figure4.png}
 \caption{Mouse in-vivo ChIP overlap enrichment (BART) and motif enrichment (HOMER) of Zic ChIP peaks that were separated by mapped gene expression into A) Early Activating, B) Late Activating c) Early Repressive D) Late Repressive. *Denotes predicted TFs that are common between the ChIP overlap enrichment and motif enrichment. }
 \label{fig:HomerBart}
 \end{figure*}
 
 \begin{figure*}[ht]
 \centering
-\includegraphics[width=.95\textwidth]{Figures/supp_figure_rrho.png}
+\includegraphics[width=.95\textwidth]{../figures/supp_figure_rrho.png}
 \caption{Zic peaks were classified into activating or repressive sets based on the map gene and the regulation of the Zic peaks. When calculating the distinctly enriched TFs between the A,D) early activating and repressive, B,E) late activating and repressive, C,F) all activating v repressive}
 \label{fig:ActvRep}
 \end{figure*}
 
 \begin{figure*}[ht]
 \centering
-\includegraphics[width=.95\textwidth]{Figures/supp_figure_rrho_allvlooped.png}
+\includegraphics[width=.95\textwidth]{../figures/supp_figure_rrho_allvlooped.png}
 \caption{Distinct TFs between the all Zic1/2 ChIP sites and the ones within anchors}
 \label{fig:loopved_all}
 \end{figure*}
@@ -317,11 +317,17 @@ Scripts used for this analysis can be found in this GitHub repository: \href{htt
 
 \begin{figure*}[ht]
 \centering
-\includegraphics[width=.95\textwidth]{Figures/supp_figure_chip_overlap.png }
+\includegraphics[width=.95\textwidth]{../figures/supp_figure_chip_overlap.png }
 \caption{Percent overlap of ChIP-seq datasets in mouse cerebellum and Zic1/2 ChIP-seq}
 \label{fig:chip_overlap}
 \end{figure*}
 
+\begin{figure*}[!ht]
+\centering
+\includegraphics[width=.95\textwidth]{../figures/figure2_looped.png}
+\caption{A) Schematic for finding disitnct TF enrichment between two peaksets. Distinct TFs enriched between early and late regulatory modes. A ranked hyper-geometric overlap test was performed to identify the TFs distinctly enriched in each set. Then the proteins were mapped to their respective gene expression. C) Distinctly enriched B) motifs and C) ChIP overlap between early and late zic binding. D) E) Log fold change of genes mapped to distinct TFs.  }
+\label{fig:DistinctTFs_looped}
+\end{figure*}
 
 
 
