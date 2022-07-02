@@ -92,7 +92,7 @@ colnames(dis_table) = c("Enrichment", "n")
   dis %>% 
     ggplot(aes(x = -log10(get(cond1)), y = -log10(get(cond2)), color = enriched_in, label = label )) +
     geom_point(size = 0.5) +
-      geom_text_repel(show.legend = F, max.overlaps = 20) +
+      geom_text_repel(show.legend = F, max.overlaps = 10) +
       theme_classic() +
       labs(x = paste0(gsub("_", " ", cond1), " -log10(adj p-val)"), y = paste0(gsub("_", " ", cond2), " -log10(adj p-val)") ) +
       scale_color_manual(name = "", limits = c(cond1, cond2, "Similar Enrichment"), labels = c(label1, label2, "Similar \nEnrichment"), values = c("dodgerblue4", "darkorange4", "grey") ) +
@@ -104,28 +104,30 @@ colnames(dis_table) = c("Enrichment", "n")
 }
 
 
-plot_distinct_gene <- function(data, cond1, cond2, gene_expr_level) {
+plot_distinct_gene <- function(data, cond1, cond2, gene_expr_level, sig = c("UP", "N.S.", "DOWN")) {
   # plot set up
   label1 = paste0('<span style="color:dodgerblue4">', str_to_title(gsub("_", "\n", cond1)), '</span>')
   label2 = paste0('<span style="color:darkorange4">', str_to_title(gsub("_", "\n", cond2)), '</span>')
-   facet_labels = c(label1, label2, "Enriched Trx P60", "Enriched Trx P7")
-   names(facet_labels) = c(cond1, cond2, "UP" ,"DOWN")
+   facet_labels = c(label1, label2, "Enriched Trx P60", "Enriched Trx P7", "N.S.")
+   names(facet_labels) = c(cond1, cond2, "UP" ,"DOWN", "N.S.")
    
-  # exrtract data
+  # extract data
   d1 = data %>%  dplyr::mutate(enrich_sig = ifelse(enriched_in == cond1, get(cond1), get(cond2))) %>% 
-    dplyr::filter(gene_sig %in% c("UP", "DOWN")) %>% 
+    dplyr::filter(gene_sig %in% sig) %>% 
     dplyr::filter(enriched_in %in% c(cond1)) %>% 
     dplyr::select(-all_of(cond1)) %>% 
-    dplyr::filter(baseMean > gene_expr_level) %>% 
+    #dplyr::filter(baseMean > gene_expr_level) %>% 
+    dplyr::mutate(TF = gsub("-", "", TF)) %>% 
     dplyr::mutate(label = ifelse(str_to_lower(TF) != str_to_lower(SYMBOL), paste0(TF, "(", SYMBOL, ")"), TF),
                   label = fct_reorder(label, -enrich_sig)) 
   
   d2 =  data %>% 
     dplyr::mutate(enrich_sig = ifelse(enriched_in == cond1, get(cond1), get(cond2))) %>% 
-    dplyr::filter(gene_sig %in% c("UP", "DOWN")) %>% 
+    dplyr::filter(gene_sig %in% sig) %>% 
     dplyr::filter(enriched_in %in% c(cond2)) %>% 
     dplyr::select( -all_of(cond2)) %>% 
-    dplyr::filter(baseMean > gene_expr_level) %>% 
+    #dplyr::filter(baseMean > gene_expr_level) %>% 
+    dplyr::mutate(TF = gsub("-", "", TF)) %>% 
     dplyr::mutate(label = ifelse(str_to_lower(TF) != str_to_lower(SYMBOL), paste0(TF, "(", SYMBOL, ")"), TF),
                   label = fct_reorder(label, -enrich_sig))
   
@@ -141,7 +143,7 @@ plot_distinct_gene <- function(data, cond1, cond2, gene_expr_level) {
     coord_flip() +
     theme(legend.position = "none", strip.text.x = element_markdown() , axis.text.y = element_text(size = 8),
           panel.spacing=unit(0,"pt"), plot.title = element_markdown()) +
-    labs(x = "Enriched TFs" , y = "Gene Expression log2(P60/P7)", fill = "TF\nEnrichment")  +
+    labs(x = "Enriched TFs" , y = "Gene Expression log2(P60/P7)", fill = "TF Enrichment")  +
     ggtitle(facet_labels[1])
   
   # cond2 plot
@@ -155,12 +157,12 @@ plot_distinct_gene <- function(data, cond1, cond2, gene_expr_level) {
     coord_flip() +
     theme(legend.position = "none", strip.text.x = element_markdown() , axis.text.y = element_text(size = 8),
           panel.spacing=unit(0,"pt"), plot.title = element_markdown()) +
-    labs(x = "Enriched TFs" , y = "Gene Expression log2(P60/P7)", fill = "TF\nEnrichment")   +
+    labs(x = "Enriched TFs" , y = "Gene Expression log2(P60/P7)", fill = "TF Enrichment")   +
     ggtitle(facet_labels[2])
   
   # extract a legend that is laid out horizontally
 legend_b <- get_legend(
-  plt1_b + theme(legend.position = "bottom")
+  plt1_b + theme(legend.position = "bottom", legend.text = element_text(angle = 45, hjust = 1))
 )
 
   # make fihal bar plot
@@ -169,12 +171,110 @@ legend_b <- get_legend(
                    ncol = 1, 
                    rel_heights = c(1, .1))
   
+  # > Gene Expression Plot
+   # cond1 plot
+  plt60_a = d1 %>% 
+    dplyr::filter(p60_mean > gene_expr_level) %>% 
+    dplyr::filter(gene_sig %in% c("N.S.", "UP")) %>% 
+        dplyr::mutate(label = fct_reorder(label, log2FoldChange)) %>% 
+    ggplot(aes(y = log2FoldChange , x = label, color = enrich_sig, size = log10(p60_mean) )) +
+    geom_point() +
+    theme_classic() +
+    scale_x_discrete(labels = function(x) str_wrap(x, width = 5))+
+    #scale_y_log10() +
+    scale_fill_continuous(limits = c(0, 0.05))+
+    #facet_grid(gene_sig~., scales = "free", space = "free_y", labeller = as_labeller(facet_labels)) +
+    coord_flip() +
+    theme( strip.text.x = element_markdown() , axis.text.y = element_text(size = 8),
+          panel.spacing=unit(0,"pt"), plot.title = element_markdown()) +
+    labs(x = "Enriched TFs" , y = "LFC", color = "TF Enrichment", size = "Log10(expression\u209A\u2086\u2080)")  +
+    ggtitle(facet_labels[1])
+  
+  # cond2 plot
+  plt60_b = d2  %>% 
+     dplyr::filter(p60_mean > gene_expr_level) %>% 
+    dplyr::filter(gene_sig %in% c("N.S.", "UP")) %>% 
+        dplyr::mutate(label = fct_reorder(label, log2FoldChange)) %>% 
+    ggplot(aes(y = log2FoldChange , x = label, color = enrich_sig, size = log10(p60_mean) )) +
+    geom_point() +
+    theme_classic() +
+    scale_x_discrete(labels = function(x) str_wrap(x, width = 5))+
+    scale_fill_continuous(limits = c(0, 0.05))+
+    #facet_grid(gene_sig~., scales = "free", space = "free_y", labeller = as_labeller(facet_labels)) +
+    coord_flip() +
+    theme(legend.position = "none", strip.text.x = element_markdown() , axis.text.y = element_text(size = 8),
+          panel.spacing=unit(0,"pt"), plot.title = element_markdown()) +
+    labs(x = "Enriched TFs" , y = "LFC", color = "TF Enrichment", size = "Log10(expression\u209A\u2086\u2080 )")   +
+    ggtitle(facet_labels[2])
+
+
+  legend_b <- get_legend(
+  plt60_a + theme(legend.position = "bottom", legend.text = element_text(angle = 45, hjust = 1))
+)
+  
+  # make fihal bar plot
+  plt60 = plot_grid(plot_grid(plt60_a, plt60_b, nrow =1 ),
+                   legend_b,
+                   ncol = 1, 
+                   rel_heights = c(1, .1))
+  
+  # cond1 plot
+  plt7_a = d1 %>% 
+    dplyr::filter(p7_mean > gene_expr_level) %>% 
+    dplyr::filter(gene_sig %in% c( "DOWN")) %>% 
+    dplyr::mutate(label = fct_reorder(label, -log2FoldChange)) %>% 
+     ggplot(aes(y = log2FoldChange , x = label, color = enrich_sig, size = log10(p7_mean) )) +
+    geom_point() +
+    theme_classic() +
+    scale_x_discrete(labels = function(x) str_wrap(x, width = 5))+
+    scale_fill_continuous(limits = c(0, 0.05))+
+    #facet_grid(gene_sig~., scales = "free", space = "free_y", labeller = as_labeller(facet_labels)) +
+    coord_flip() +
+    theme(legend.position = "none", strip.text.x = element_markdown() , axis.text.y = element_text(size = 8),
+          panel.spacing=unit(0,"pt"), plot.title = element_markdown()) +
+    labs(x = "Enriched TFs" , y = "LFC", color = "TF Enrichment", size = "Log10(expression\u209A\u2087)")   +
+    ggtitle(facet_labels[1])
+  
+  # cond2 plot
+  plt7_b = d2  %>% 
+      dplyr::filter(p7_mean > gene_expr_level) %>% 
+      dplyr::filter(gene_sig %in% c("DOWN")) %>% 
+        dplyr::mutate(label = fct_reorder(label, -log2FoldChange)) %>% 
+    ggplot(aes(y = log2FoldChange , x = label, color = enrich_sig, size = log10(p7_mean) )) +
+    geom_point() +
+    theme_classic() +
+    scale_x_discrete(labels = function(x) str_wrap(x, width = 5))+
+        scale_y_log10() +
+    scale_fill_continuous(limits = c(0, 0.05))+
+    #facet_grid(gene_sig~., scales = "free", space = "free_y", labeller = as_labeller(facet_labels)) +
+    coord_flip() +
+    theme(legend.position = "none", strip.text.x = element_markdown() , axis.text.y = element_text(size = 8),
+          panel.spacing=unit(0,"pt"), plot.title = element_markdown()) +
+    labs(x = "Enriched TFs" , y = "LFC", color = "TF Enrichment", size = "Log10(expression\u209A\u2087 )")   +
+    ggtitle(facet_labels[2])
+
+
+  # make fihal bar plot
+  plt7 = plot_grid(plot_grid(plt7_a, plt7_b, nrow =1 ),
+                   legend_b,
+                   ncol = 1, 
+                   rel_heights = c(1, .1))
+  
+  pltEarlyLate = plot_grid(plot_grid(plt7_a, plt60_b, nrow =1 ),
+                   legend_b,
+                   ncol = 1, 
+                   rel_heights = c(1, .1))
+  
+  
+  
+  # scatter - volcano like
   plt2 = data %>% 
     dplyr::mutate(enrich_sig = ifelse(enriched_in == cond1, get(cond1), get(cond2))) %>% 
-    #dplyr::filter(gene_sig %in% c("UP", "DOWN")) %>% 
+    dplyr::filter(gene_sig %in% sig) %>% 
     dplyr::filter(enriched_in %in% c(cond1, cond2)) %>% 
     dplyr::select(-all_of(cond1), -all_of(cond2)) %>% 
     dplyr::filter(baseMean > gene_expr_level) %>% 
+    dplyr::mutate(TF = gsub("-", "", TF)) %>% 
     dplyr::mutate(label = ifelse(str_to_lower(TF) != str_to_lower(SYMBOL), paste0(TF, "(", SYMBOL, ")"), TF)) %>% 
     ggplot(aes(y = log2FoldChange, x = -log10(enrich_sig), color = enrich_sig, label =  label )) +
     geom_point() +
@@ -186,9 +286,66 @@ legend_b <- get_legend(
           panel.spacing=unit(0,"pt")) +
     labs(x = "Enriched TFs" , y = "Gene Expression log2(P60/P7)") 
   
-  return(list(bar = plt1, scatter = plt2, list1 =d1$SYMBOL  , list2 = d2$SYMBOL))
+  return(list(bar = plt1, scatter = plt2, p60 = plt60, p7 = plt7, pltFin = pltEarlyLate,  list1 =d1$SYMBOL, list2 = d2$SYMBOL))
   
 }
+
+distinct_lolipop  <- function(data, cond1, cond2, gene_expr_level) {
+  # plot set up
+   facet_labels = c('<span style="color:dodgerblue4">Early</span>', '<span style="color:darkorange4">Late</span>')
+   names(facet_labels) = c("Early", "Late")
+   
+  # extract data
+  d1 = data %>%  dplyr::mutate(enrich_sig = ifelse(enriched_in == cond1, get(cond1), get(cond2))) %>% 
+    dplyr::filter(enriched_in %in% c(cond1)) %>% 
+    dplyr::select(-all_of(cond1)) %>% 
+    #dplyr::filter(baseMean > gene_expr_level) %>% 
+    dplyr::mutate(TF = gsub("-", "", TF)) %>% 
+    dplyr::mutate(label = ifelse(str_to_lower(TF) != str_to_lower(SYMBOL), paste0(TF, "(", SYMBOL, ")"), TF),
+                  label = fct_reorder(label, -enrich_sig)) 
+  
+  d2 =  data %>% 
+    dplyr::mutate(enrich_sig = ifelse(enriched_in == cond1, get(cond1), get(cond2))) %>% 
+    dplyr::filter(enriched_in %in% c(cond2)) %>% 
+    dplyr::select( -all_of(cond2)) %>% 
+    #dplyr::filter(baseMean > gene_expr_level) %>% 
+    dplyr::mutate(TF = gsub("-", "", TF)) %>% 
+    dplyr::mutate(label = ifelse(str_to_lower(TF) != str_to_lower(SYMBOL), paste0(TF, "(", SYMBOL, ")"), TF),
+                  label = fct_reorder(label, -enrich_sig))
+  
+  
+    bind_rows(
+      list( Late = d2  %>%
+              dplyr::filter(p60_mean > gene_expr_level) %>% 
+              dplyr::filter(gene_sig %in% c("UP")) %>% 
+              dplyr::mutate(label = fct_reorder(label, log2FoldChange)) %>% 
+              dplyr::rename(plt_mean = p60_mean),
+            Early = d1 %>% 
+              dplyr::filter(p7_mean > gene_expr_level) %>% 
+              dplyr::filter(gene_sig %in% c( "DOWN")) %>% 
+              dplyr::mutate(label = fct_reorder(label, -log2FoldChange))%>% 
+              dplyr::rename(plt_mean = p7_mean)),
+      .id = "id") %>% 
+      
+    ggplot(aes(y = log2FoldChange , x = label, color = enrich_sig, size = plt_mean )) +
+    geom_segment( aes(x=label, xend=label, y=0, yend=log2FoldChange, size = 1), color = "grey", show.legend = FALSE) +
+    geom_hline(yintercept = 0, color = "black", size = .5, linetype = "dashed") +
+    geom_point() +
+    theme_classic() +
+    scale_x_discrete(labels = function(x) str_wrap(x, width = 5))+
+    scale_color_viridis(limits = c(0, 0.05))+
+    facet_grid(id~., scales = "free", space = "free_y", labeller = labeller(facet_labels)) +
+    coord_flip() +
+    theme(legend.position = "bottom", 
+          legend.text = element_text(angle = 45, hjust = 1),
+          strip.text.x = element_markdown() , 
+          axis.text.y = element_text(size = 8),
+          panel.spacing=unit(0,"pt"), 
+          plot.title = element_markdown()) +
+    labs(x = "Enriched TFs" , y = "LFC", color = "TF Enrichment", size = "expression")   
+
+}
+
 
 plot_pathways <-function(data, cond1, cond2, gene_expr_level){
   label1 = paste0('<span style="color:dodgerblue4">', str_to_title(gsub("_", " ", cond1)), '</span>')
@@ -479,57 +636,77 @@ supp_allvlooped
 
 
 
-png("../figures/supp_figure_rrho.png", height = 8, width = 12, res = 300, units = "in" )
-supp_dis
-dev.off()
-
-png("../figures/supp_figure_rrho_allvlooped.png", height = 8, width = 8, res = 300, units = "in" )
-supp_allvlooped
-dev.off()
-
-```
-
-```{r geneExpression, fig.height=10, fig.width=8}
-gene_expr_filt = 100
-
-c2 = plot_distinct_gene(earlyvlate, "early", "late", gene_expr_filt )
-d2 = plot_distinct_gene(earlyvlate_all, "early_all", "late_all", gene_expr_filt )
-
-ch2 = plot_distinct_gene(earlyvlate_hom, "early", "late", gene_expr_filt )
-dh2 = plot_distinct_gene(earlyvlate_all_hom, "early_all", "late_all", gene_expr_filt )
-
-plot_grid(c2$bar, ch2$bar, nrow = 2, rel_heights = c(.55, .45), labels = c("Bart", "Homer"))
-plot_grid(d2$bar, dh2$bar, nrow = 2, rel_heights = c(.55, .45), labels = c("Bart", "Homer"))
-
-
-plot_distinct_gene(early_allVloop_hom, "early", "early_all", gene_expr_filt )
+# png("../figures/supp_figure_rrho.png", height = 8, width = 12, res = 300, units = "in" )
+# supp_dis
+# dev.off()
+# 
+# png("../figures/supp_figure_rrho_allvlooped.png", height = 8, width = 8, res = 300, units = "in" )
+# supp_allvlooped
+# dev.off()
 
 ```
 
+```{r geneExpression, fig.height=3, fig.width=4}
+# using the 25-pecentile as a cut off for low reads
+gene_expr_filt = quantile(earlyvlate_all$p7_mean, na.rm=T)[2]
+# 
+# c2 = plot_distinct_gene(earlyvlate, "early", "late", gene_expr_filt )
+# d2 = plot_distinct_gene(earlyvlate_all, "early_all", "late_all", gene_expr_filt )
+# 
+# ch2 = plot_distinct_gene(earlyvlate_hom, "early", "late", gene_expr_filt )
+# dh2 = plot_distinct_gene(earlyvlate_all_hom, "early_all", "late_all", gene_expr_filt )
+# 
+# #plot_grid(c2$bar, ch2$bar, nrow = 2, rel_heights = c(.55, .45), labels = c("Bart", "Homer"))
+# #plot_grid(d2$bar, dh2$bar, nrow = 2, rel_heights = c(.55, .45), labels = c("Bart", "Homer"))
+# 
+# d2$pltFin
+# dh2$pltFin
+# 
+# # 
+# # par(mfrow=c(1,2))
+# # hist(earlyvlate_all$p7_mean)
+# # hist(earlyvlate_all$p60_mean)
+# # par(mfrow=c(1,1))
+
+chip = distinct_lolipop(earlyvlate, "early", "late", gene_expr_filt )
+motif = distinct_lolipop(earlyvlate_hom, "early", "late", gene_expr_filt )
+legend_plt = get_legend(motif)
+d_tf = plot_grid(plot_grid(motif + theme(legend.position = "none"), chip + theme(legend.position = "none"), nrow = 1, labels = c("C", "D")),
+          legend_plt,
+          rel_heights = c(.9, .1),
+          ncol = 1)
+
+d_tf
+
+
+chip_all = distinct_lolipop(earlyvlate_all, "early_all", "late_all", gene_expr_filt )
+motif_all = distinct_lolipop(earlyvlate_all_hom, "early_all", "late_all", gene_expr_filt )
+legend_plt_all = get_legend(motif_all)
+d_tf_all = plot_grid(plot_grid(motif_all + theme(legend.position = "none"), chip_all + theme(legend.position = "none"), nrow = 1, labels = c("C", "D")),
+          legend_plt_all,
+          rel_heights = c(.9, .1),
+          ncol = 1)
+
+d_tf_all
+```
 
 # Distinctly Enriched TFs
 
-```{r figure 3, fig.height=10, fig.width=12}
+```{r figure 3, fig.height=3, fig.width=5}
 
 # looped peaks
-looped_fig = plot_grid(a,
-          plot_grid(plot_grid(ch1, c1, ncol = 1, labels = c("B\t\t\t\t\tMotif Enrichment", "C\t\t\t\t\tChIP Enrichment"), hjust = 0),
-          plot_grid(ch2$bar, c2$bar, ncol = 1, rel_heights = c(.4, .6), labels = c("D", "E")),
-          ncol = 2),
-          labels = c("A"),
-          ncol = 1,
-          rel_heights = c(.25, .75)
-          
+looped_fig = 
+          plot_grid(plot_grid(ch1, c1, ncol = 1, labels = c("A\t\t\t\tMotif Enrichment", "B\t\t\t\tChIP Enrichment"), hjust = 0),
+          d_tf,
+          rel_widths = c(.4, .6)
 )
 
 # all peaks
-all_fig = plot_grid(a,
-          plot_grid(plot_grid(dh1, d1, ncol = 1, labels = c("B\t\t\t\t\tMotif Enrichment", "C\t\t\t\t\tChIP Enrichment"), hjust = 0),
-          plot_grid(dh2$bar, d2$bar, ncol = 1, rel_heights = c(.4, .6), labels = c("D", "E")),
-          ncol = 2),
-          labels = c("A"),
-          ncol = 1,
-          rel_heights = c(.25, .75)
+all_fig = plot_grid(
+          plot_grid(dh1, d1, ncol = 1, labels = c("A\t\t\t\tMotif Enrichment", "B\t\t\t\tChIP Enrichment"), hjust = 0),
+         d_tf_all ,
+          ncol = 2,
+         rel_widths = c(.4, .6)
 )
 
 
@@ -603,7 +780,7 @@ sh = plot_bart_homer("early_all", early_all_bart, early_all_homer, axis_text_siz
 si = plot_bart_homer("late_all", late_all_bart, late_all_homer, axis_text_size)
 
 supp = plot_grid(sa,
-           plot_grid(sb,sc,sd,se, sf,sg,sh,si,  nrow = 2, labels = c("B", "C", "D", "E", "F", "G", "H", "I")),
+           plot_grid(sf,sg,sh,si,  nrow = 2, labels = c("B", "C", "D", "E")),
            labels = c("A", ""),
            nrow = 2, 
            rel_heights  = c(.1, .9),
