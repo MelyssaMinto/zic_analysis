@@ -10,7 +10,7 @@ library(RRHO)
 # Read in data ------------------------------------------------------------
 result_paths = paste0("../../results/invivo/peak_gene/", list.files(path = "../../results/invivo/peak_gene/", pattern = "_bart_results.txt", recursive = T))
 names(result_paths) = str_extract(result_paths, "(?<=_gene/).+(?=/)")
-result_paths2 =  paste0("../../results/invivo/DiffExp_ZicChIP/", list.files(path = "../../results/Dinvivo/iffExp_ZicChIP/", pattern = "_bart_results.txt", recursive = T))
+result_paths2 =  paste0("../../results/invivo/DiffExp_ZicChIP/", list.files(path = "../../results/invivo/DiffExp_ZicChIP/", pattern = "_bart_results.txt", recursive = T))
 names(result_paths2) = paste0(str_extract(result_paths2, "(?<=_ZicChIP/).+(?=/)"), "_all")
 
 all_result_paths = c(result_paths, result_paths2)
@@ -126,8 +126,11 @@ pull_distinct_enriched <-function(cond1, cond2, bart_data1, bart_data2){
   
 }
 
-plotRRHO <-function(cond1, cond2, object, lims){
-  
+plotRRHO <-function(cond1, cond2, name1 = NULL, name2=NULL, object, lims){
+  if(is.null(name1) | is.null(name2)){
+    name1 = cond1
+    name2 = cond2
+  }
   # extracting and rotating rrho matrix
   mat = object$hypermat
   mat = t(mat)
@@ -151,22 +154,21 @@ plotRRHO <-function(cond1, cond2, object, lims){
     scale_fill_gradientn(colours = mycol, limits = lims, n.breaks=7)+
     theme(axis.text=element_blank(),
           axis.ticks=element_blank(),
-          legend.key.height= unit(2.7, 'cm'),
-          legend.key.width= unit(1, 'cm')) +
-    labs(x = cond1, y = cond2, fill = "-log10(p-value)") +
-    ggtitle("Rank Rank Hypergeometric Overlap Map")+
+          legend.key.height= unit(1, 'cm'),
+          legend.key.width= unit(.5, 'cm')) +
+    labs(x = name1, y = name2, fill = "-log10(p-value)") +
     theme(plot.title = element_text(hjust = 0.5, face="bold"))
   
   pmap
 }
 
-runRRHO <- function(cond1, cond2, bart_data1, bart_data2, lims = NULL){
+runRRHO <- function(cond1, cond2, name1 = NULL, name2 = NULL, bart_data1, bart_data2, lims = NULL){
   # running rrho
   obj = rrho_tf(cond1, cond2, bart_data1, bart_data2, lims)
   # getting distinctly enriched TFs
   distinct_enriched = pull_distinct_enriched(cond1, cond2, bart_data1, bart_data2)
   # rrho heatmap
-  pmap = plotRRHO(cond1, cond2, obj, lims)
+  pmap = plotRRHO(cond1, cond2, name1, name2, obj, lims)
   
   #making final table
   table = full_join(bart_data1, bart_data2, by = c("TF", "SYMBOL", "p7_mean", "p60_mean", "baseMean", "log2FoldChange", "lfcSE", "stat", "pvalue", "padj", "gene_sig") ) %>% 
@@ -195,15 +197,18 @@ early_all = map_bart("early_all", 0.05) %>% write_tsv("../../results/invivo/Diff
 late_all = map_bart("late_all", 0.05) %>% write_tsv("../../results/invivo/DiffExp_ZicChIP/late/bart_results.txt")
 static_all = map_bart("late_all", 0.05) %>% write_tsv("../../results/invivo/DiffExp_ZicChIP/static/bart_results.txt")
 
-earlyVlate_act = runRRHO("early_activating", "late_activating", early_activating, late_activating, lims = c(0, 400))
-early_actVrep = runRRHO("early_activating", "early_repressive", early_activating, early_repressive, lims = c(0, 400))
-earlyVlate_rep = runRRHO("early_repressive", "late_repressive", early_repressive,late_repressive, lims = c(0, 400))
-late_actvrep = runRRHO("late_activating", "late_repressive", late_activating, late_repressive, lims = c(0, 400))
-actvrep = runRRHO("activating", "repressive", activating, repressive, lims = c(0, 400))
-earlyvlate = runRRHO("early", "late", early, late, lims = c(0, 400))
-early_allVloop = runRRHO("early_all", "early", early_all, early, lims = c(0, 400))
-late_allVloop = runRRHO("late_all", "late", late_all, late, lims = c(0, 400))
-earlyVlate_all = runRRHO("early_all", "late_all", early_all, late_all, lims = c(0,400))
+earlyVlate_act = runRRHO("early_activating", "late_activating", bart_data1 = early_activating, bart_data2 = late_activating, lims = c(0, 400))
+early_actVrep = runRRHO("early_activating", "early_repressive", bart_data1 = early_activating, bart_data2 = early_repressive, lims = c(0, 400))
+earlyVlate_rep = runRRHO("early_repressive", "late_repressive", bart_data1 = early_repressive, bart_data2 = late_repressive, lims = c(0, 400))
+late_actvrep = runRRHO("late_activating", "late_repressive", bart_data1 = late_activating,     bart_data2 = late_repressive, lims = c(0, 400))
+actvrep = runRRHO("activating", "repressive", bart_data1 = activating, bart_data2 =repressive, lims = c(0, 400))
+
+early_allVloop = runRRHO("early_all", "early", "Early", "Early Looped", early_all, early, lims = c(0, 260))
+late_allVloop = runRRHO("late_all", "late",  "Late", "Late Looped",late_all, late, lims = c(0, 260))
+
+earlyVlate_all = runRRHO("early_all", "late_all", "Early", "Late", early_all, late_all, lims = c(0,50))
+earlyvlate = runRRHO("early", "late", "Early Looped", "Late Looped", early, late, lims = c(0, 50))
+
 # Save table --------------------------------------------------------------
 
 earlyVlate_act$table %>% write_tsv("../../results/invivo/peak_gene/rrho/early_late_activating.txt")
@@ -215,3 +220,24 @@ earlyvlate$table %>% write_tsv("../../results/invivo/peak_gene/rrho/early_late.t
 early_allVloop$table %>% write_tsv("../../results/invivo/peak_gene/rrho/early_allvloop.txt")
 late_allVloop$table %>% write_tsv("../../results/invivo/peak_gene/rrho/late_allvloop.txt")
 earlyVlate_all$table %>% write_tsv("../../results/invivo/peak_gene/rrho/earlyvlate_all.txt")
+
+
+# Save heatmaps -----------------------------------------------------------
+
+png("../../figures/earlyvlate_rrho_bart.png", units = "in", height = 3, width = 4, res = 300)
+earlyvlate$pmap 
+dev.off()
+
+png("../../figures/earlyVlate_all_rrho_bart.png", units = "in", height = 3, width = 4, res = 300)
+earlyVlate_all$pmap
+dev.off()
+
+
+png("../../figures/early_allVloop_rrho_bart.png", units = "in", height = 3, width = 4, res = 300)
+early_allVloop$pmap
+dev.off()
+
+png("../../figures/late_allVloop_rrho_bart.png", units = "in", height = 3, width = 4, res = 300)
+late_allVloop$pmap 
+dev.off()
+

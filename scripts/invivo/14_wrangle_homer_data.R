@@ -114,8 +114,11 @@ pull_distinct_enriched <-function(cond1, cond2, homer_data1, homer_data2){
   
 }
 
-plotRRHO <-function(cond1, cond2, object, lims){
-  
+plotRRHO <-function(cond1, cond2, name1 = NULL, name2=NULL, object, lims){
+  if(is.null(name1) | is.null(name2)){
+    name1 = cond1
+    name2 = cond2
+  }
   # extracting and rotating rrho matrix
   mat = object$hypermat
   mat = t(mat)
@@ -139,16 +142,15 @@ plotRRHO <-function(cond1, cond2, object, lims){
     scale_fill_gradientn(colours = mycol, limits = lims, n.breaks=7)+
     theme(axis.text=element_blank(),
           axis.ticks=element_blank(),
-          legend.key.height= unit(2.7, 'cm'),
-          legend.key.width= unit(1, 'cm')) +
-    labs(x = cond1, y = cond2, fill = "-log10(p-value)") +
-    ggtitle("Rank Rank Hypergeometric Overlap Map")+
+          legend.key.height= unit(1, 'cm'),
+          legend.key.width= unit(.5, 'cm')) +
+    labs(x = name1, y = name2, fill = "-log10(p-value)") +
     theme(plot.title = element_text(hjust = 0.5, face="bold"))
   
   pmap
 }
 
-runRRHO <- function(cond1, cond2, lims = NULL){
+runRRHO <- function(cond1, cond2, name1=NULL, name2=NULL, lims = NULL){
   
   data1 = homer_data %>% dplyr::filter(filename == cond1)
   data2 = homer_data %>% dplyr::filter(filename == cond2)
@@ -158,7 +160,7 @@ runRRHO <- function(cond1, cond2, lims = NULL){
   # getting distinctly enriched TFs
   distinct_enriched = pull_distinct_enriched(cond1, cond2, data1, data2)
   # rrho heatmap
-  pmap = plotRRHO(cond1, cond2, obj, lims)
+  pmap = plotRRHO(cond1, cond2, name1, name2, obj, lims)
   
   #making final table
   table = homer_data %>%
@@ -178,7 +180,7 @@ runRRHO <- function(cond1, cond2, lims = NULL){
     dplyr::mutate(SYMBOL = str_to_title(SYMBOL)) %>% 
     dplyr::rename(TF = name)
 
-  list(distinct_enriched = distinct_enriched, pmap = pmap, table = table)
+  return(list(distinct_enriched = distinct_enriched, pmap = pmap, table = table))
   
   
 }
@@ -191,10 +193,11 @@ early_actVrep = runRRHO(cond1 = "early_activating", cond2 = "early_repressive", 
 earlyVlate_rep = runRRHO(cond1 = "early_repressive", cond2 = "late_repressive", lims = NULL)
 late_actvrep = runRRHO(cond1 = "late_activating", cond2 = "late_repressive", lims = NULL)
 actvrep = runRRHO(cond1 = "activating", cond2 = "repressive", lims = NULL)
-earlyvlate = runRRHO(cond1 = "early", cond2 = "late", lims = NULL)
-early_allVloop = runRRHO(cond1 = "early_all", cond2 = "early", lims = NULL)
-late_allVloop = runRRHO(cond1 = "late_all", cond2 = "late", lims = NULL)
-earlyVlate_all = runRRHO(cond1 = "early_all", cond2 = "late_all", lims = NULL)
+
+early_allVloop = runRRHO(cond1 = "early_all", cond2 = "early",name1 = "Early", name2 = "Early Looped", lims = c(0, 110))
+late_allVloop = runRRHO(cond1 = "late_all", cond2 = "late",name1 = "Late", name2 = "Late Looped",  lims =  c(0, 110))
+earlyVlate_all = runRRHO(cond1 = "early_all", cond2 = "late_all", name1 = "Early",name2 = "Late",lims =  c(0, 45))
+earlyvlate = runRRHO(cond1 = "early", cond2 = "late", name1 = "Early Looped",name2 = "Late Looped",lims = c(0, 45))
 
 
 # Save table --------------------------------------------------------------
@@ -208,3 +211,28 @@ earlyvlate$table %>% write_tsv("../../results/invivo/peak_gene/rrho/early_late_h
 early_allVloop$table %>% write_tsv("../../results/invivo/peak_gene/rrho/early_allvloop_homer.txt")
 late_allVloop$table %>% write_tsv("../../results/invivo/peak_gene/rrho/late_allvloop_homer.txt")
 earlyVlate_all$table %>% write_tsv("../../results/invivo/peak_gene/rrho/earlyvlate_all_homer.txt")
+
+# Save heatmaps -----------------------------------------------------------
+png("../../figures/earlyvlate_rrho_homer.png", units = "in", height = 3, width = 4, res = 300)
+earlyvlate$pmap 
+dev.off()
+
+png("../../figures/earlyVlate_all_rrho_homer.png", units = "in", height = 3, width = 4, res = 300)
+earlyVlate_all$pmap
+dev.off()
+
+
+png("../../figures/early_allVloop_rrho_homer.png", units = "in", height = 3, width = 4, res = 300)
+early_allVloop$pmap
+dev.off()
+
+png("../../figures/late_allVloop_rrho_homer.png", units = "in", height = 3, width = 4, res = 300)
+late_allVloop$pmap 
+dev.off()
+
+
+
+
+# -------------------------------------------------------------------------
+
+

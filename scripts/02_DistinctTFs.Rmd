@@ -16,11 +16,83 @@ library(clusterProfiler)
 library(ReactomePA)
 library(AnnotationDbi)
 library(org.Mm.eg.db)
+
+ # set scheme
+scheme <- getScheme(name=getOption("Gviz.scheme"))
+scheme$GdObject$col.axis = "white"
+scheme$GdObject$background.title = "black"
+scheme$GdObject$fontcolor = "black"
+scheme$GdObject$rotation.title = 90
+scheme$GeneRegionTrack$transcriptAnnotation = "symbol"
+scheme$GeneRegionTrack$col = "black"
+scheme$GeneRegionTrack$fill = "black"
+scheme$GeneRegionTrack$collapseTranscripts = FALSE
+scheme$DataTrack$fill.histogram = "darkblue"
+scheme$DataTrack$col.histogram = "darkblue"
+scheme$GdObject$col.border.title = "transparent"
+
+addScheme(scheme, "myScheme")
+options(Gviz.scheme="myScheme")
+options(ucscChromosomeNames=FALSE)
+# formatting data
+genomeAxis <- GenomeAxisTrack(name="MyAxis") 
+customFromTxDb <- GeneRegionTrack(TxDb.Mmusculus.UCSC.mm10.knownGene)
 ```
 
 ```{r define functions}
 
-plot_bart_homer <- function(cond1, bart_data, homer_data, s){
+#' Title
+#'
+#' @param gene - gene to plot
+#' @param tracks - GViz tracks to plot
+#' @param expand_l - Number of base-pairs to expand to the left
+#' @param expand_r - Number of base-pairs to expand to the right
+#' @param ylim - y-axis lim
+#'
+#' @return 
+#' @export
+
+
+plot_track <- function(gene, tracks,  expand_l= 0, expand_r = 0, ylim = c(0,3)){
+  # getting gene info
+  id = mapIds(org.Mm.eg.db, keys =gene , column ="ENTREZID", keytype="SYMBOL")
+  info = biomaRt::select(TxDb.Mmusculus.UCSC.mm10.knownGene, keys = id  , columns=c("TXNAME", "TXSTART", "TXEND", "TXCHROM"), keytype="GENEID")
+  start = info$TXSTART[1]
+  end = info$TXEND[1]
+  chr = info$TXCHROM[1]
+  
+  # setting up plot inputs
+  start = start - expand_l
+  end = end + expand_r  
+  
+  gencode <- UcscTrack(genome = "mm10", chromosome = chr,
+                      track = "All GENCODE VM25", from = start, to = end,
+                      trackType = "GeneRegionTrack", 
+                      rstarts = "exonStarts", rends = "exonEnds", 
+                      gene = "name",  symbol = "name2", 
+                      transcript = "name", strand = "strand",
+                      name = "transcripts", showID=TRUE)
+  
+  tracks$gencode = gencode
+  tracks$axis = genomeAxis
+
+  s = rep(1, length(tracks))
+    #plot
+    plotTracks(tracks,  
+               from=start,
+               to=end, 
+               chromosome=chr,
+               type="hist",
+               window = 1000,
+               ylim = ylim,
+               sizes = s)
+
+  
+  
+  
+}
+
+plot_bart_homer <- function(cond1, bart_data, homer_data, s, title){
   dat1 = bart_data %>% 
   dplyr::filter(!grepl("ZIC", TF)) %>% 
   dplyr::filter(gene_sig %in% c("UP", "DOWN")) %>% 
@@ -43,15 +115,17 @@ plot_bart_homer <- function(cond1, bart_data, homer_data, s){
     bind_rows(list(bart = dat1 %>% 
                      dplyr::mutate(label_f = ifelse(str_to_title(SYMBOL) %in% common_sig_TFs, paste0("*", label_f), str_to_title(label_f)),
                                    label_f = ifelse(str_to_title(SYMBOL) %in% common_TFs, paste0('<span style="color:blue;font-weight:bold">', label_f, '</span>' ), label_f),
-                                   label_f = fct_reorder(as.factor(label_f), log2FoldChange)) %>% 
-                     dplyr::select(log2FoldChange, label_f),
+                                   label_f = fct_reorder(as.factor(label_f), get(cond1))) %>% 
+                     dplyr::rename(enrich_stat = !!cond1) %>% 
+                     dplyr::select(enrich_stat, label_f),
                    homer = dat2 %>% 
                      dplyr::mutate(label_f = ifelse(str_to_title(SYMBOL) %in% common_sig_TFs, paste0("*", label_f), str_to_title(label_f)),
                                    label_f = ifelse(str_to_title(SYMBOL) %in% common_TFs, paste0('<span style="color:blue;font-weight:bold">', label_f, '</span>' ), label_f),
-                                   label_f = fct_reorder(as.factor(label_f), log2FoldChange)) %>% 
-                     dplyr::select(log2FoldChange, label_f)),
+                                   label_f = fct_reorder(as.factor(label_f), `q-value (Benjamini)`)) %>% 
+                      dplyr::rename(enrich_stat = `q-value (Benjamini)`) %>% 
+                      dplyr::select(enrich_stat, label_f)),
                    .id = "id") %>% 
-      ggplot(aes(y = log2FoldChange, x = label_f, fill = id)) +
+      ggplot(aes(y = enrich_stat, x = label_f, fill = id)) +
         geom_bar(stat = "identity") +
         geom_hline(yintercept = 0,color = "grey",linetype = "dashed") +
         coord_flip() +
@@ -67,8 +141,8 @@ plot_bart_homer <- function(cond1, bart_data, homer_data, s){
               strip.text = element_text(size = s),
               legend.position = "none",
               plot.title = element_text(hjust = 0.45)) +
-        ylab(bquote("Gene Expression" ~ log[2] ~ "(P60/P7)")) +
-        ggtitle(str_to_title(gsub("_", " ", cond1)))
+        ylab("Adjusted p-value") +
+        ggtitle(str_to_title(title))
     
 
 
@@ -94,201 +168,15 @@ colnames(dis_table) = c("Enrichment", "n")
     geom_point(size = 0.5) +
       geom_text_repel(show.legend = F, max.overlaps = 10) +
       theme_classic() +
-      labs(x = paste0(gsub("_", " ", cond1), " -log10(adj p-val)"), y = paste0(gsub("_", " ", cond2), " -log10(adj p-val)") ) +
+      labs(x = paste0(gsub("Distinct ", " ", label1), " -log10(adj p-val)"), y = paste0(gsub("Distinct ", " ", label2), " -log10(adj p-val)") ) +
       scale_color_manual(name = "", limits = c(cond1, cond2, "Similar Enrichment"), labels = c(label1, label2, "Similar \nEnrichment"), values = c("dodgerblue4", "darkorange4", "grey") ) +
-     annotate(geom = "table", label = list(dis_table), x = 4.5, y = 4.5, fill = "white" ,  table.theme = ttheme_gtlight)+
+     annotate(geom = "table", label = list(dis_table), x = 5, y = 5, fill = "white" ,  table.theme = ttheme_gtlight)+
      scale_y_continuous(limits = c(0, 5)) +
     scale_x_continuous(limits = c(0, 5)) +
       theme(legend.position = "bottom") +
        guides(colour = guide_legend(override.aes = list(size=3)))
 }
 
-
-plot_distinct_gene <- function(data, cond1, cond2, gene_expr_level, sig = c("UP", "N.S.", "DOWN")) {
-  # plot set up
-  label1 = paste0('<span style="color:dodgerblue4">', str_to_title(gsub("_", "\n", cond1)), '</span>')
-  label2 = paste0('<span style="color:darkorange4">', str_to_title(gsub("_", "\n", cond2)), '</span>')
-   facet_labels = c(label1, label2, "Enriched Trx P60", "Enriched Trx P7", "N.S.")
-   names(facet_labels) = c(cond1, cond2, "UP" ,"DOWN", "N.S.")
-   
-  # extract data
-  d1 = data %>%  dplyr::mutate(enrich_sig = ifelse(enriched_in == cond1, get(cond1), get(cond2))) %>% 
-    dplyr::filter(gene_sig %in% sig) %>% 
-    dplyr::filter(enriched_in %in% c(cond1)) %>% 
-    dplyr::select(-all_of(cond1)) %>% 
-    #dplyr::filter(baseMean > gene_expr_level) %>% 
-    dplyr::mutate(TF = gsub("-", "", TF)) %>% 
-    dplyr::mutate(label = ifelse(str_to_lower(TF) != str_to_lower(SYMBOL), paste0(TF, "(", SYMBOL, ")"), TF),
-                  label = fct_reorder(label, -enrich_sig)) 
-  
-  d2 =  data %>% 
-    dplyr::mutate(enrich_sig = ifelse(enriched_in == cond1, get(cond1), get(cond2))) %>% 
-    dplyr::filter(gene_sig %in% sig) %>% 
-    dplyr::filter(enriched_in %in% c(cond2)) %>% 
-    dplyr::select( -all_of(cond2)) %>% 
-    #dplyr::filter(baseMean > gene_expr_level) %>% 
-    dplyr::mutate(TF = gsub("-", "", TF)) %>% 
-    dplyr::mutate(label = ifelse(str_to_lower(TF) != str_to_lower(SYMBOL), paste0(TF, "(", SYMBOL, ")"), TF),
-                  label = fct_reorder(label, -enrich_sig))
-  
-  
-  # cond1 plot
-  plt1_a = d1 %>% 
-    ggplot(aes(y = log2FoldChange, x = label, fill = enrich_sig )) +
-    geom_col(size = 0.5, position = position_dodge()) +
-    theme_classic() +
-    scale_x_discrete(labels = function(x) str_wrap(x, width = 5))+
-    scale_fill_continuous(limits = c(0, 0.05))+
-    facet_grid(gene_sig~., scales = "free", space = "free_y", labeller = as_labeller(facet_labels)) +
-    coord_flip() +
-    theme(legend.position = "none", strip.text.x = element_markdown() , axis.text.y = element_text(size = 8),
-          panel.spacing=unit(0,"pt"), plot.title = element_markdown()) +
-    labs(x = "Enriched TFs" , y = "Gene Expression log2(P60/P7)", fill = "TF Enrichment")  +
-    ggtitle(facet_labels[1])
-  
-  # cond2 plot
-  plt1_b = d2  %>% 
-     ggplot(aes(y = log2FoldChange, x = label, fill = enrich_sig )) +
-    geom_col(size = 0.5, position = position_dodge()) +
-    theme_classic() +
-    scale_x_discrete(labels = function(x) str_wrap(x, width = 5))+
-    scale_fill_continuous(limits = c(0, 0.05))+
-    facet_grid(gene_sig~., scales = "free", space = "free_y", labeller = as_labeller(facet_labels)) +
-    coord_flip() +
-    theme(legend.position = "none", strip.text.x = element_markdown() , axis.text.y = element_text(size = 8),
-          panel.spacing=unit(0,"pt"), plot.title = element_markdown()) +
-    labs(x = "Enriched TFs" , y = "Gene Expression log2(P60/P7)", fill = "TF Enrichment")   +
-    ggtitle(facet_labels[2])
-  
-  # extract a legend that is laid out horizontally
-legend_b <- get_legend(
-  plt1_b + theme(legend.position = "bottom", legend.text = element_text(angle = 45, hjust = 1))
-)
-
-  # make fihal bar plot
-  plt1 = plot_grid(plot_grid(plt1_a, plt1_b, nrow =1 ),
-                   legend_b,
-                   ncol = 1, 
-                   rel_heights = c(1, .1))
-  
-  # > Gene Expression Plot
-   # cond1 plot
-  plt60_a = d1 %>% 
-    dplyr::filter(p60_mean > gene_expr_level) %>% 
-    dplyr::filter(gene_sig %in% c("N.S.", "UP")) %>% 
-        dplyr::mutate(label = fct_reorder(label, log2FoldChange)) %>% 
-    ggplot(aes(y = log2FoldChange , x = label, color = enrich_sig, size = log10(p60_mean) )) +
-    geom_point() +
-    theme_classic() +
-    scale_x_discrete(labels = function(x) str_wrap(x, width = 5))+
-    #scale_y_log10() +
-    scale_fill_continuous(limits = c(0, 0.05))+
-    #facet_grid(gene_sig~., scales = "free", space = "free_y", labeller = as_labeller(facet_labels)) +
-    coord_flip() +
-    theme( strip.text.x = element_markdown() , axis.text.y = element_text(size = 8),
-          panel.spacing=unit(0,"pt"), plot.title = element_markdown()) +
-    labs(x = "Enriched TFs" , y = "LFC", color = "TF Enrichment", size = "Log10(expression\u209A\u2086\u2080)")  +
-    ggtitle(facet_labels[1])
-  
-  # cond2 plot
-  plt60_b = d2  %>% 
-     dplyr::filter(p60_mean > gene_expr_level) %>% 
-    dplyr::filter(gene_sig %in% c("N.S.", "UP")) %>% 
-        dplyr::mutate(label = fct_reorder(label, log2FoldChange)) %>% 
-    ggplot(aes(y = log2FoldChange , x = label, color = enrich_sig, size = log10(p60_mean) )) +
-    geom_point() +
-    theme_classic() +
-    scale_x_discrete(labels = function(x) str_wrap(x, width = 5))+
-    scale_fill_continuous(limits = c(0, 0.05))+
-    #facet_grid(gene_sig~., scales = "free", space = "free_y", labeller = as_labeller(facet_labels)) +
-    coord_flip() +
-    theme(legend.position = "none", strip.text.x = element_markdown() , axis.text.y = element_text(size = 8),
-          panel.spacing=unit(0,"pt"), plot.title = element_markdown()) +
-    labs(x = "Enriched TFs" , y = "LFC", color = "TF Enrichment", size = "Log10(expression\u209A\u2086\u2080 )")   +
-    ggtitle(facet_labels[2])
-
-
-  legend_b <- get_legend(
-  plt60_a + theme(legend.position = "bottom", legend.text = element_text(angle = 45, hjust = 1))
-)
-  
-  # make fihal bar plot
-  plt60 = plot_grid(plot_grid(plt60_a, plt60_b, nrow =1 ),
-                   legend_b,
-                   ncol = 1, 
-                   rel_heights = c(1, .1))
-  
-  # cond1 plot
-  plt7_a = d1 %>% 
-    dplyr::filter(p7_mean > gene_expr_level) %>% 
-    dplyr::filter(gene_sig %in% c( "DOWN")) %>% 
-    dplyr::mutate(label = fct_reorder(label, -log2FoldChange)) %>% 
-     ggplot(aes(y = log2FoldChange , x = label, color = enrich_sig, size = log10(p7_mean) )) +
-    geom_point() +
-    theme_classic() +
-    scale_x_discrete(labels = function(x) str_wrap(x, width = 5))+
-    scale_fill_continuous(limits = c(0, 0.05))+
-    #facet_grid(gene_sig~., scales = "free", space = "free_y", labeller = as_labeller(facet_labels)) +
-    coord_flip() +
-    theme(legend.position = "none", strip.text.x = element_markdown() , axis.text.y = element_text(size = 8),
-          panel.spacing=unit(0,"pt"), plot.title = element_markdown()) +
-    labs(x = "Enriched TFs" , y = "LFC", color = "TF Enrichment", size = "Log10(expression\u209A\u2087)")   +
-    ggtitle(facet_labels[1])
-  
-  # cond2 plot
-  plt7_b = d2  %>% 
-      dplyr::filter(p7_mean > gene_expr_level) %>% 
-      dplyr::filter(gene_sig %in% c("DOWN")) %>% 
-        dplyr::mutate(label = fct_reorder(label, -log2FoldChange)) %>% 
-    ggplot(aes(y = log2FoldChange , x = label, color = enrich_sig, size = log10(p7_mean) )) +
-    geom_point() +
-    theme_classic() +
-    scale_x_discrete(labels = function(x) str_wrap(x, width = 5))+
-        scale_y_log10() +
-    scale_fill_continuous(limits = c(0, 0.05))+
-    #facet_grid(gene_sig~., scales = "free", space = "free_y", labeller = as_labeller(facet_labels)) +
-    coord_flip() +
-    theme(legend.position = "none", strip.text.x = element_markdown() , axis.text.y = element_text(size = 8),
-          panel.spacing=unit(0,"pt"), plot.title = element_markdown()) +
-    labs(x = "Enriched TFs" , y = "LFC", color = "TF Enrichment", size = "Log10(expression\u209A\u2087 )")   +
-    ggtitle(facet_labels[2])
-
-
-  # make fihal bar plot
-  plt7 = plot_grid(plot_grid(plt7_a, plt7_b, nrow =1 ),
-                   legend_b,
-                   ncol = 1, 
-                   rel_heights = c(1, .1))
-  
-  pltEarlyLate = plot_grid(plot_grid(plt7_a, plt60_b, nrow =1 ),
-                   legend_b,
-                   ncol = 1, 
-                   rel_heights = c(1, .1))
-  
-  
-  
-  # scatter - volcano like
-  plt2 = data %>% 
-    dplyr::mutate(enrich_sig = ifelse(enriched_in == cond1, get(cond1), get(cond2))) %>% 
-    dplyr::filter(gene_sig %in% sig) %>% 
-    dplyr::filter(enriched_in %in% c(cond1, cond2)) %>% 
-    dplyr::select(-all_of(cond1), -all_of(cond2)) %>% 
-    dplyr::filter(baseMean > gene_expr_level) %>% 
-    dplyr::mutate(TF = gsub("-", "", TF)) %>% 
-    dplyr::mutate(label = ifelse(str_to_lower(TF) != str_to_lower(SYMBOL), paste0(TF, "(", SYMBOL, ")"), TF)) %>% 
-    ggplot(aes(y = log2FoldChange, x = -log10(enrich_sig), color = enrich_sig, label =  label )) +
-    geom_point() +
-    geom_text() +
-    theme_classic() +
-    facet_wrap(~enriched_in, scales = "free", labeller = as_labeller(facet_labels)) +
-    coord_flip() +
-    theme(legend.position = "bottom", strip.text.x = element_markdown() , axis.text.y = element_text(size = 8),
-          panel.spacing=unit(0,"pt")) +
-    labs(x = "Enriched TFs" , y = "Gene Expression log2(P60/P7)") 
-  
-  return(list(bar = plt1, scatter = plt2, p60 = plt60, p7 = plt7, pltFin = pltEarlyLate,  list1 =d1$SYMBOL, list2 = d2$SYMBOL))
-  
-}
 
 distinct_lolipop  <- function(data, cond1, cond2, gene_expr_level) {
   # plot set up
@@ -347,46 +235,6 @@ distinct_lolipop  <- function(data, cond1, cond2, gene_expr_level) {
 }
 
 
-plot_pathways <-function(data, cond1, cond2, gene_expr_level){
-  label1 = paste0('<span style="color:dodgerblue4">', str_to_title(gsub("_", " ", cond1)), '</span>')
-  label2 = paste0('<span style="color:darkorange4">', str_to_title(gsub("_", " ", cond2)), '</span>')
-  
-  # pull out significant and distint TFs
-  dat = data %>% 
-    dplyr::filter(gene_sig %in% c("UP", "DOWN")) %>% 
-    dplyr::filter(enriched_in %in% c(cond1, cond2)) %>% 
-    dplyr::filter(baseMean > gene_expr_level) 
-
-  # pull out gene lists
-  genes_1 = mapIds(org.Mm.eg.db, keys =dat$SYMBOL[dat$enriched_in == cond1] , column ="ENTREZID", keytype="SYMBOL")
-  genes_2 = mapIds(org.Mm.eg.db, keys =dat$SYMBOL[dat$enriched_in == cond2] , column ="ENTREZID", keytype="SYMBOL")
-  
-  # erichment analysis
-  kk2 <- enrichKEGG(gene = genes_2, organism = "mmu", pvalueCutoff = 0.05)
-  kk1 <- enrichKEGG(gene = genes_1, organism = "mmu", pvalueCutoff = 0.05)
-  
-  # plotting
-  facet_labels = c(label1, label2)
-  names(facet_labels) = c(cond1, cond2)
-     
-  bind_rows(as.data.frame(kk1) %>% dplyr::mutate(id = cond1),
-            as.data.frame(kk2) %>% dplyr::mutate(id = cond2)) %>% 
-    dplyr::mutate(GeneRatio_frac = as.numeric(str_extract(GeneRatio, "[^/]+")) / as.numeric(str_extract(GeneRatio, "(?<=/).+"))) %>% 
-    dplyr::mutate(Description = fct_reorder(Description, GeneRatio_frac),
-                  GeneRatio = fct_reorder(GeneRatio, GeneRatio_frac),
-                  Count = round(Count)) %>% 
-    ggplot(aes(x = GeneRatio, y = Description, size = Count, color = p.adjust))+
-    geom_point() +
-    facet_grid(id~., scales = "free_y",space = "free_y", labeller = as_labeller(facet_labels))+
-    theme_classic() +
-      theme(plot.title = element_markdown(), 
-             strip.text.y = element_markdown())+
-    scale_y_discrete(labels = function(x) str_wrap(x, width = 20))+
-    scale_color_viridis_c(end = .9)+
-    labs(y = "")
-
-
-}
 
 plot_overlap <-function(peakset, overlap, name){
 
@@ -430,7 +278,7 @@ plot_overlap <-function(peakset, overlap, name){
     ggplot(aes(y = peak, fill = fill_o)) +
     geom_bar(position = "fill") +
     coord_flip() +
-    scale_fill_manual(limits = c("DOWN", "UP", "N.S.", "no"), labels = c("P7", "P60", "Static", "No \nOverlap"),values = c("blue", "red", "black", "grey")) +
+    scale_fill_manual(limits = c("DOWN", "UP", "N.S.", "no"), labels = c("Early", "Late", "Static", "No \nOverlap"),values = c("blue", "red", "black", "grey")) +
     theme_classic() +
     labs(y = "", x = "Prop. Overlap", fill = "Zic Peak") +
    theme(legend.key.size = unit(.3, 'cm'))
@@ -461,7 +309,7 @@ plot_overlap <-function(peakset, overlap, name){
     dplyr::filter(zic_sig != "filtered") %>% 
     ggplot(aes(x = zic_sig, y = n, fill = overlap)) +
     geom_bar(position = "fill", stat = "identity") +
-    scale_x_discrete(limits = c("DOWN",  "N.S.", "UP"), labels = c("P7", "Static", "P60")) +
+    scale_x_discrete(limits = c("DOWN",  "N.S.", "UP"), labels = c("Early", "Static", "Late")) +
     scale_fill_manual(values = c("black", "grey")) +
     theme_classic() +
     #geom_signif(tip_length = 0, annotation = results$p.signif, xmin = 0.8, xmax = 3.2, y_position = 1.01 , color = "black")+
@@ -582,91 +430,24 @@ a = rasterGrob(readPNG("../figures/rrho_workflow.png"), interpolate = T)
 ```
 ![](../figures/rrho_workflow.png)
 ```{r distinct, fig.height=4, fig.width=8}
-
-c1 = plot_distinct(earlyvlate, "early", "late", "Distinct Early", "Distinct Late" )
+# Early v Late
+c1 = plot_distinct(earlyvlate, "early", "late", "Distinct Early Looped", "Distinct Late Looped" )
 d1 = plot_distinct(earlyvlate_all, "early_all", "late_all", "Distinct Early", "Distinct Late" )
-
-sa1 = plot_distinct(early_actVrep, "early_activating", "early_repressive", "Distinct \nActivating", "Distinct \nRepressive" )
-sa2 = plot_distinct(late_actvrep, "late_activating", "late_repressive", "Distinct \nActivating", "Distinct \nRepressive" )
-sa3 = plot_distinct(actvrep, "activating", "repressive", "Distinct \nActivating", "Distinct \nRepressive" )
-sa4 = plot_distinct(early_allVloop, "early_all", "early", "Distinct \nAll Zic P7", "Distinct \nLooped Zic P7")
-sa5 = plot_distinct(late_allVloop, "late_all", "late", "Distinct \nAll Zic P60", "Distinct \nLooped Zic P60")
-
-
-ch1 = plot_distinct(earlyvlate_hom, "early", "late", "Distinct Early", "Distinct Late" )
+ch1 = plot_distinct(earlyvlate_hom, "early", "late", "Distinct Early Looped", "Distinct Late Looped" )
 dh1 = plot_distinct(earlyvlate_all_hom, "early_all", "late_all", "Distinct Early", "Distinct Late" )
 
-
-sah1 = plot_distinct(early_actVrep_hom, "early_activating", "early_repressive", "Distinct \nActivating", "Distinct \nRepressive" )
-sah2 = plot_distinct(late_actvrep_hom, "late_activating", "late_repressive", "Distinct \nActivating", "Distinct \nRepressive" )
-sah3 = plot_distinct(actvrep_hom, "activating", "repressive", "Distinct \nActivating", "Distinct \nRepressive" )
-sah4 = plot_distinct(early_allVloop_hom, "early_all", "early", "Distinct \nAll Zic P7", "Distinct \nLooped Zic P7")
-sah5 = plot_distinct(late_allVloop_hom, "late_all", "late", "Distinct \nAll Zic P60", "Distinct \nLooped Zic P60")
 
 
 plot_grid(c1, ch1, labels = c("Bart", "Homer"), hjust = -2)
 plot_grid(d1, dh1, labels = c("Bart", "Homer"), hjust = -2)
-plot_grid(sa1, sah1, labels = c("Bart", "Homer"), hjust = -2)
-plot_grid(sa2, sah2, labels = c("Bart", "Homer"), hjust = -2)
-plot_grid(sa3, sah3, labels = c("Bart", "Homer"), hjust = -2)
-plot_grid(sa4, sah4, labels = c("Bart", "Homer"), hjust = -2)
-plot_grid(sa5, sah5, labels = c("Bart", "Homer"), hjust = -2)
 ```
 
 
-```{r distinct supp, fig.height=8, fig.width=12}
 
-supp_dis = plot_grid(plot_grid(sa1, sa2, sa3, nrow = 1, labels = c("A", "B", "C")), 
-          plot_grid(sah1, sah2, sah3, nrow = 1,  labels = c("D", "E", "F")),
-          nrow = 2, 
-          labels = c("\t\t\t\t\t\t\t\t\tBart", "\t\t\t\t\t\t\t\t\tHomer"),
-          vjust = 1
-)
-
-
-supp_allvlooped = plot_grid(
-  plot_grid(sa4, sah4, labels = c("Bart", "Homer"), hjust = -2),
-  plot_grid(sa5, sah5, labels = c("Bart", "Homer"), hjust = -2), nrow =2)
-
-
-
-
-supp_dis
-supp_allvlooped
-
-
-
-# png("../figures/supp_figure_rrho.png", height = 8, width = 12, res = 300, units = "in" )
-# supp_dis
-# dev.off()
-# 
-# png("../figures/supp_figure_rrho_allvlooped.png", height = 8, width = 8, res = 300, units = "in" )
-# supp_allvlooped
-# dev.off()
-
-```
 
 ```{r geneExpression, fig.height=3, fig.width=4}
 # using the 25-pecentile as a cut off for low reads
 gene_expr_filt = quantile(earlyvlate_all$p7_mean, na.rm=T)[2]
-# 
-# c2 = plot_distinct_gene(earlyvlate, "early", "late", gene_expr_filt )
-# d2 = plot_distinct_gene(earlyvlate_all, "early_all", "late_all", gene_expr_filt )
-# 
-# ch2 = plot_distinct_gene(earlyvlate_hom, "early", "late", gene_expr_filt )
-# dh2 = plot_distinct_gene(earlyvlate_all_hom, "early_all", "late_all", gene_expr_filt )
-# 
-# #plot_grid(c2$bar, ch2$bar, nrow = 2, rel_heights = c(.55, .45), labels = c("Bart", "Homer"))
-# #plot_grid(d2$bar, dh2$bar, nrow = 2, rel_heights = c(.55, .45), labels = c("Bart", "Homer"))
-# 
-# d2$pltFin
-# dh2$pltFin
-# 
-# # 
-# # par(mfrow=c(1,2))
-# # hist(earlyvlate_all$p7_mean)
-# # hist(earlyvlate_all$p60_mean)
-# # par(mfrow=c(1,1))
 
 chip = distinct_lolipop(earlyvlate, "early", "late", gene_expr_filt )
 motif = distinct_lolipop(earlyvlate_hom, "early", "late", gene_expr_filt )
@@ -692,18 +473,18 @@ d_tf_all
 
 # Distinctly Enriched TFs
 
-```{r figure 3, fig.height=3, fig.width=5}
+```{r figure 3, fig.height=6, fig.width=12}
 
 # looped peaks
 looped_fig = 
-          plot_grid(plot_grid(ch1, c1, ncol = 1, labels = c("A\t\t\t\tMotif Enrichment", "B\t\t\t\tChIP Enrichment"), hjust = 0),
+          plot_grid(plot_grid(ch1, c1, ncol = 1, labels = c("A", "B"), hjust = 0),
           d_tf,
           rel_widths = c(.4, .6)
 )
 
 # all peaks
 all_fig = plot_grid(
-          plot_grid(dh1, d1, ncol = 1, labels = c("A\t\t\t\tMotif Enrichment", "B\t\t\t\tChIP Enrichment"), hjust = 0),
+          plot_grid(dh1, d1, ncol = 1, labels = c("A", "B"), hjust = 0),
          d_tf_all ,
           ncol = 2,
          rel_widths = c(.4, .6)
@@ -711,14 +492,14 @@ all_fig = plot_grid(
 
 
 
-png("../figures/figure2.png", height = 12, width = 12, res = 300, units = "in" )
+# png("../figures/figure2.png", height = 6, width = 12, res = 300, units = "in" )
 all_fig
-dev.off()
+# dev.off()
 
 
-png("../figures/figure2_loop.png", height = 12, width = 12, res = 300, units = "in" )
+# png("../figures/figure2_loop.png", height = 6, width = 12, res = 300, units = "in" )
 looped_fig
-dev.off()
+# dev.off()
 
 
 
@@ -765,30 +546,44 @@ dev.off()
 ```
 
 
-```{r supp fig 4, fig.height= 20, fig.width=15}
+```{r supp fig 4, fig.height= 10, fig.width=15}
 
-axis_text_size = 13
+axis_text_size = 10
 sa = rasterGrob(readPNG("../figures/venn_diagram.png"))
-sb = plot_bart_homer("early_activating", early_activ_bart, early_activ_homer, axis_text_size)
-sc = plot_bart_homer("late_activating", late_activ_bart, late_activ_homer, axis_text_size)
-sd = plot_bart_homer("late_repressive", late_repr_bart, late_repr_homer, axis_text_size)
-se = plot_bart_homer("early_repressive", early_repr_bart, early_repr_homer, axis_text_size)
-sf = plot_bart_homer("early", early_bart, early_homer, axis_text_size)
-sg = plot_bart_homer("late", late_bart, late_homer, axis_text_size)
+# sb = plot_bart_homer("early_activating", early_activ_bart, early_activ_homer, axis_text_size)
+# sc = plot_bart_homer("late_activating", late_activ_bart, late_activ_homer, axis_text_size)
+# sd = plot_bart_homer("late_repressive", late_repr_bart, late_repr_homer, axis_text_size)
+# se = plot_bart_homer("early_repressive", early_repr_bart, early_repr_homer, axis_text_size)
 
-sh = plot_bart_homer("early_all", early_all_bart, early_all_homer, axis_text_size)
-si = plot_bart_homer("late_all", late_all_bart, late_all_homer, axis_text_size)
+
+sh = plot_bart_homer("early_all", early_all_bart, early_all_homer, axis_text_size, "Early")
+si = plot_bart_homer("late_all", late_all_bart, late_all_homer, axis_text_size, "Late")
+
+sf = plot_bart_homer("early", early_bart, early_homer, axis_text_size, "Early Looped")
+sg = plot_bart_homer("late", late_bart, late_homer, axis_text_size, "Late Looped")
+
+r1 = rasterGrob(readPNG("../figures/earlyVlate_all_rrho_bart.png"))
+r2 = rasterGrob(readPNG("../figures/earlyvlate_rrho_bart.png"))
+r3 = rasterGrob(readPNG("../figures/early_allVloop_rrho_bart.png"))
+r4 = rasterGrob(readPNG("../figures/late_allVloop_rrho_bart.png"))
+r5 = rasterGrob(readPNG("../figures/earlyVlate_all_rrho_homer.png"))
+r6 = rasterGrob(readPNG("../figures/earlyvlate_rrho_homer.png"))
+r7 = rasterGrob(readPNG("../figures/early_allVloop_rrho_homer.png"))
+r8 = rasterGrob(readPNG("../figures/late_allVloop_rrho_homer.png"))
+
+
 
 supp = plot_grid(sa,
-           plot_grid(sf,sg,sh,si,  nrow = 2, labels = c("B", "C", "D", "E")),
+           plot_grid(sh,si,sf,sg,  nrow = 1, labels = c("B", "C", "D", "E")),
+           plot_grid(r1, r2,r3,r4,r5,r6,r7,r8, nrow = 2, labels = LETTERS[6:13]),
            labels = c("A", ""),
-           nrow = 2, 
-           rel_heights  = c(.1, .9),
+           nrow = 3, 
+           rel_heights  = c(.1, .5, .4),
            axis = "l"
            )
  
- 
-png("../figures/supp_figure4.png", height = 20, width = 15, res = 300, units = "in" )
+
+png("../figures/supp_figure2.png", height = 15, width = 15, res = 300, units = "in" )
 supp
 dev.off()
 
@@ -801,6 +596,23 @@ Supplemental Figure . Mouse in-vivo ChIP overlap enrichement (BART) and motif en
 
 
 ```{r distinct supp, fig.width=10, fig.height=7}
+
+# Act v Rep
+sa1 = plot_distinct(early_actVrep, "early_activating", "early_repressive", "Distinct \nActivating", "Distinct \nRepressive" )
+sa2 = plot_distinct(late_actvrep, "late_activating", "late_repressive", "Distinct \nActivating", "Distinct \nRepressive" )
+sa3 = plot_distinct(actvrep, "activating", "repressive", "Distinct \nActivating", "Distinct \nRepressive" )
+sah1 = plot_distinct(early_actVrep_hom, "early_activating", "early_repressive", "Distinct \nActivating", "Distinct \nRepressive" )
+sah2 = plot_distinct(late_actvrep_hom, "late_activating", "late_repressive", "Distinct \nActivating", "Distinct \nRepressive" )
+sah3 = plot_distinct(actvrep_hom, "activating", "repressive", "Distinct \nActivating", "Distinct \nRepressive" )
+
+# all v looped zic peaks
+sa4 = plot_distinct(early_allVloop, "early_all", "early", "Distinct \nAll Zic P7", "Distinct \nLooped Zic P7")
+sa5 = plot_distinct(late_allVloop, "late_all", "late", "Distinct \nAll Zic P60", "Distinct \nLooped Zic P60")
+sah4 = plot_distinct(early_allVloop_hom, "early_all", "early", "Distinct \nAll Zic P7", "Distinct \nLooped Zic P7")
+sah5 = plot_distinct(late_allVloop_hom, "late_all", "late", "Distinct \nAll Zic P60", "Distinct \nLooped Zic P60")
+
+
+
 supp_dis = plot_grid(plot_grid(sa1, sa2, sa3, nrow = 1, labels = c("A", "B", "C")), 
           plot_grid(sah1, sah2, sah3, nrow = 1,  labels = c("D", "E", "F")),
           nrow = 2, 
@@ -866,15 +678,15 @@ chip_o = plot_grid(atoh_p$plot1, atoh_p$plot2,
 
 
 
-png("../figures/supp_figure_chip_overlap.png", height = 6, width = 8, res = 300, units = "in" )
+# png("../figures/supp_figure_chip_overlap.png", height = 6, width = 8, res = 300, units = "in" )
 chip_o
-dev.off()
+# dev.off()
 ```
 
 
 
 
-```{r tracks, fig.width=12, fig.height=3}
+```{r tracks, fig.width=12, fig.height=3.5}
  # set scheme
 scheme <- getScheme(name=getOption("Gviz.scheme"))
 scheme$GdObject$col.axis = "white"
@@ -891,91 +703,90 @@ scheme$GdObject$col.border.title = "transparent"
 
 addScheme(scheme, "myScheme")
 options(Gviz.scheme="myScheme")
-
+options(ucscChromosomeNames=FALSE)
 # formatting data
 genomeAxis <- GenomeAxisTrack(name="MyAxis") 
 customFromTxDb <- GeneRegionTrack(TxDb.Mmusculus.UCSC.mm10.knownGene)
 
 # make bigwig tracks
-p7_zic_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/zic_chip/SRR1557091/SRR1557091_norm.bw", as="GRanges"), 
-                   genome = "mm10",name = "Zic P7", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
-p60_zic_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/zic_chip/SRR1557093/SRR1557093_norm.bw", as="GRanges"), 
-                   genome = "mm10",name = "Zic P60", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
-atoh1_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/atoh1_chip/SRR059286/SRR059286_norm.bw", as="GRanges"), 
-                   genome = "mm10",name = "Atoh1", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
-chd7_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/chd7_p4_chip/SRR13371039/SRR13371039_norm.bw", as="GRanges"), 
-                   genome = "mm10",name = "Chd7", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
-chd4_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/chd4_p22_chip/SRR3659055/SRR3659055_norm.bw", as="GRanges"), 
-                   genome = "mm10",name = "Chd4", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
-ctcf_p4_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/ctcf_p4_chip/SRR13371014/SRR13371014_norm.bw", as="GRanges"), 
-                   genome = "mm10",name = "CTCF P4", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
-ctcf_p22_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/ctcf_p22_chip/SRR10275430/SRR10275430_norm.bw", as="GRanges"), 
-                   genome = "mm10",name = "CTCF P22", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
-ctcf_p56_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/ctcf_p56_chip/SRR8696015/SRR8696015_norm.bw", as="GRanges"), 
-                   genome = "mm10",name = "CTCF P56", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
-rad21_p4_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/rad21_p4_chip/SRR13371020/SRR13371020_norm.bw", as="GRanges"), 
-                   genome = "mm10",name = "Rad21 P4", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
-rad21_p56_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/rad21_p56_chip/SRR8696023/SRR8696023_norm.bw", as="GRanges"), 
-                   genome = "mm10",name = "Rad21 P56", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
-smc1_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/smc1_p22_chip/SRR10275434/SRR10275434_norm.bw", as="GRanges"), 
-                   genome = "mm10",name = "Smc1 P22", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
-h2a_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/H2A_p22_chip/SRR3659059/SRR3659059_norm.bw", as="GRanges"), 
-                   genome = "mm10",name = "H2A.z P22", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
-h3_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/H3_p22_chip/SRR3659065/SRR3659065_norm.bw", as="GRanges"), 
-                   genome = "mm10",name = "H3 P22", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+p7_zic_bw1 <- DataTrack(import.bw("../sequencing_data/preprocessed_data/zic_chip/SRR1557091/SRR1557091_norm.bw", as="GRanges"), 
+                   genome = "mm10",name = "Zic \nP7", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+p7_zic_bw2 <- DataTrack(import.bw("../sequencing_data/preprocessed_data/zic_chip/SRR1557092/SRR1557092_norm.bw", as="GRanges"), 
+                   genome = "mm10",name = "Zic \nP7", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+p60_zic_bw1 <- DataTrack(import.bw("../sequencing_data/preprocessed_data/zic_chip/SRR1557093/SRR1557093_norm.bw", as="GRanges"), 
+                   genome = "mm10",name = "Zic \nP60", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+p60_zic_bw2 <- DataTrack(import.bw("../sequencing_data/preprocessed_data/zic_chip/SRR1557094/SRR1557094_norm.bw", as="GRanges"), 
+                   genome = "mm10",name = "Zic \nP60", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+atoh1_bw1 <- DataTrack(import.bw("../sequencing_data/preprocessed_data/atoh1_chip/SRR059286/SRR059286_norm.bw", as="GRanges"), 
+                   genome = "mm10",name = "Atoh1\n P5", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+atoh1_bw2 <- DataTrack(import.bw("../sequencing_data/preprocessed_data/atoh1_chip/SRR059287/SRR059287_norm.bw", as="GRanges"), 
+                   genome = "mm10",name = "Atoh1 \nP5", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+# chd7_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/chd7_p4_chip/SRR13371039/SRR13371039_norm.bw", as="GRanges"), 
+#                    genome = "mm10",name = "Chd7", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+# chd4_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/chd4_p22_chip/SRR3659055/SRR3659055_norm.bw", as="GRanges"), 
+#                    genome = "mm10",name = "Chd4", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+# ctcf_p4_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/ctcf_p4_chip/SRR13371014/SRR13371014_norm.bw", as="GRanges"), 
+#                    genome = "mm10",name = "CTCF P4", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+# ctcf_p22_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/ctcf_p22_chip/SRR10275430/SRR10275430_norm.bw", as="GRanges"), 
+#                    genome = "mm10",name = "CTCF P22", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+# ctcf_p56_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/ctcf_p56_chip/SRR8696015/SRR8696015_norm.bw", as="GRanges"), 
+#                    genome = "mm10",name = "CTCF P56", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+# rad21_p4_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/rad21_p4_chip/SRR13371020/SRR13371020_norm.bw", as="GRanges"), 
+#                    genome = "mm10",name = "Rad21 P4", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+# rad21_p56_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/rad21_p56_chip/SRR8696023/SRR8696023_norm.bw", as="GRanges"), 
+#                    genome = "mm10",name = "Rad21 P56", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+# smc1_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/smc1_p22_chip/SRR10275434/SRR10275434_norm.bw", as="GRanges"), 
+#                    genome = "mm10",name = "Smc1 P22", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+# h2a_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/H2A_p22_chip/SRR3659059/SRR3659059_norm.bw", as="GRanges"), 
+#                    genome = "mm10",name = "H2A.z P22", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+# h3_bw <- DataTrack(import.bw("../sequencing_data/preprocessed_data/H3_p22_chip/SRR3659065/SRR3659065_norm.bw", as="GRanges"), 
+#                    genome = "mm10",name = "H3 P22", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
 
 
 # make peak tracks
-atoh1_zic_track = make_track(atoh1_zic_overlap, "Atoh1")
-chd7_zic_track = make_track(chd7_zic_overlap, "Chd7")
-chd4_zic_track = make_track(chd4_zic_overlap, "Chd4")
-ctcf_p4_zic_track = make_track(ctcfP4_zic_overlap, "Ctcf P4")
-ctcf_p22_zic_track = make_track(ctcfP22_zic_overlap, "Ctcf P22")
-ctcf_p56_zic_track = make_track(ctcfP56_zic_overlap, "Ctcf P56")
-rad21_p4_zic_track = make_track(rad21P4_zic_overlap, "Rad21 P4")
-rad21_p56_zic_track = make_track(rad21P56_zic_overlap, "Rad21 P56")
-smc1_zic_track = make_track(smc1_zic_overlap, "Smc1")
-h2a_zic_track = make_track(h2a_zic_overlap, "H2A.z")
-h3_zic_track = make_track(H3_zic_overlap, "H3")
+atoh1_zic_track = make_track(atoh1_zic_overlap, "Overlap")
+# chd7_zic_track = make_track(chd7_zic_overlap, "Chd7")
+# chd4_zic_track = make_track(chd4_zic_overlap, "Chd4")
+# ctcf_p4_zic_track = make_track(ctcfP4_zic_overlap, "Ctcf P4")
+# ctcf_p22_zic_track = make_track(ctcfP22_zic_overlap, "Ctcf P22")
+# ctcf_p56_zic_track = make_track(ctcfP56_zic_overlap, "Ctcf P56")
+# rad21_p4_zic_track = make_track(rad21P4_zic_overlap, "Rad21 P4")
+# rad21_p56_zic_track = make_track(rad21P56_zic_overlap, "Rad21 P56")
+# smc1_zic_track = make_track(smc1_zic_overlap, "Smc1")
+# h2a_zic_track = make_track(h2a_zic_overlap, "H2A.z")
+# h3_zic_track = make_track(H3_zic_overlap, "H3")
+# 
+
+
+tracks = list(p7_zic_bw1, 
+              p7_zic_bw2, 
+              p60_zic_bw1, 
+              p60_zic_bw2,
+              atoh1_bw1,
+              atoh1_bw2)
 
 
 
-tracks = list(atoh1_zic_track,
-              p7_zic_bw, 
-              p60_zic_bw, 
-              atoh1_bw)
-
-
-png("../figures/fig1_track1.png", units = "in", height = 3, width = 12, res = 300)
-plot_track("Mycn", tracks, 75000, 10000, ylim = c(0,2)) # looks kinda good
+png("../figures/atoh1_overlap_track.png", units = "in", height = 3.5, width = 12, res = 300)
+plot_track("Ccnd2", tracks, 25000, 50000, ylim = c(0,2)) ## this is the one
 dev.off()
 
-png("../figures/fig1_track2.png", units = "in", height = 3, width = 12, res = 300)
-plot_track("Ccnd2", tracks, 50000, 50000, ylim = c(0,1)) ## this is the one
+png("../figures/atoh1_overlap_track_Chd7.png", units = "in", height = 3.5, width = 12, res = 300)
+plot_track("Chd7", tracks, 50000, 50000, ylim = c(0,2)) ## this is the one
 dev.off()
 
-e2 = rasterGrob(readPNG("../figures/fig1_track2.png"))
-e1 = rasterGrob(readPNG("../figures/fig1_track1.png"))
+png("../figures/atoh1_overlap_track_Zmiz1.png", units = "in", height = 3.5, width = 12, res = 300)
+plot_track("Zmiz1", tracks, 50000, 50000, ylim = c(0,2)) ## this is the one
+dev.off()
+
+png("../figures/atoh1_overlap_track_Dpf3.png", units = "in", height = 3.5, width = 12, res = 300)
+plot_track("Dpf3", tracks, 50000, 50000, ylim = c(0,2)) ## this is the one
+dev.off()
+
+
+# e2 = rasterGrob(readPNG("../figures/fig1_track2.png"))
+# e1 = rasterGrob(readPNG("../figures/fig1_track1.png"))
 
 
 
-# plot_track("Atoh1", tracks, 100000, 100000)
-# plot_track("Cbln3", tracks, 100000, 100000)
-# plot_track("Cntn1", tracks, 100000, 100000)
-# plot_track("Cxcr4", tracks, 100000, 100000)
-# plot_track("Erbb4", tracks, 100000, 100000)
-# plot_track("Foxp2", tracks, 100000, 100000)
-# plot_track("Gas1", tracks, 100000, 100000)
-# plot_track("Gm2a", tracks, 100000, 100000)
-# plot_track("Adgrg1", tracks, 100000, 100000) #Gpr56
-# plot_track("Itgb1", tracks, 100000, 100000)
-# plot_track("Neurod1", tracks, 100000, 100000)
-# plot_track("Nfia", tracks, 100000, 100000)
-# plot_track("Ntf3", tracks, 100000, 100000)
-# plot_track("Pax6", tracks, 100000, 100000)
-# plot_track("Plxnb2", tracks, 100000, 100000)
-# plot_track("Sema6a", tracks, 100000, 100000)
-# plot_track("Unc5c", tracks, 100000, 100000)
-# plot_track("Zbtb18", tracks, 100000, 100000) #zfp238
-# plot_track("Zic4", tracks, 100000, 100000)
 ```
