@@ -49,7 +49,35 @@ zic_ma
 ```
 
 ```{r}
-low_exp = 0
+
+# There are 108 peaks whose mean is greater than 1000 
+p7_mean_1000 = P60vP7_zic %>% 
+  dplyr::filter(p7_mean > 1000) %>% 
+  pull(PeakID)
+
+p60_mean_1000 = P60vP7_zic %>% 
+  dplyr::filter(p7_mean > 1000) %>% 
+  pull(PeakID)
+
+peaks_mean_1000 = union(p7_mean_1000, p60_mean_1000)
+
+
+# Distribution of mean signal for early and late peaks at P7 and P60
+DistReads=  P60vP7_zic %>% 
+  dplyr::filter(!(zic_sig %in% c("filtered", "N.S.")) )%>% 
+  pivot_longer(cols = ends_with("_mean"), values_to = "means", names_to = "time") %>% 
+  dplyr::filter(means <= 500) %>% 
+  mutate(time = factor(time, levels = c("p7_mean", "p60_mean"))) %>%
+  ggplot(aes(x = means)) +
+  geom_histogram(fill = "white", color = "black", bins = 50) +
+  theme_classic() +
+  facet_grid(time~zic_sig, labeller = labeller(zic_sig = c("DOWN" = "Early", "UP" = "Late", "N.S." = "Static"), time = c("p60_mean" = "P60", "p7_mean" = "P7")))+
+  labs(x = "Mean Zic ChIP Normalized Reads", y = "Number of Peaks")
+DistReads
+```
+
+```{r}
+low_exp = 10
 lossGain = P60vP7_zic %>% 
   dplyr::filter(p7_mean <= low_exp | p60_mean <= low_exp) %>% 
   dplyr::filter(zic_sig %in% c("UP", "DOWN")) %>% 
@@ -57,69 +85,17 @@ lossGain = P60vP7_zic %>%
   geom_bar(fill = "black", color = "black") +
   theme_classic() +
   scale_x_discrete(limits = c("DOWN", "UP"), labels = c("Complete\nLoss", "Complete\nGain"))+
-  labs(y = "# Peaks Mean \nSignal = 0 at P7 or P60", x ="Change")
+  labs(y = "# Peaks Mean \nSignal < 10 at P7 or P60", x ="Change")
 lossGain
+
+ P60vP7_zic %>% 
+  dplyr::filter(p7_mean <= low_exp | p60_mean <= low_exp) %>% 
+  dplyr::filter(zic_sig %in% c("UP", "DOWN")) %>% 
+  dplyr::count(zic_sig)
 ```
-
-
-```{r peak overlap, fig.height=4, fig.width=6}
-
-facet_labs = c("H3K27ac", "DNase" )
-names(facet_labs) = c("k27ac_overlap", "dnase_overlap" )
-
-zic_overlap = zic_peak_data %>% 
-  dplyr::select(sequence_name, k27ac_sequence_name, dnase_sequence_name, ends_with("sig")) %>% 
-  distinct() %>% 
-  dplyr::filter(!(sequence_name == "no zic peak")) %>% 
-  dplyr::filter(!(zic_sig == "filtered")) %>% 
-  dplyr::mutate(k27ac_overlap = ifelse(k27ac_sequence_name !="no overlap" & k27ac_sig %in% c(zic_sig, "N.S.") , 'yes', 'no'),
-                dnase_overlap = ifelse(dnase_sequence_name !="no overlap" & dnase_sig  %in% c(zic_sig, "N.S.") , 'yes', 'no')) %>%  
-  pivot_longer(cols = c("k27ac_overlap", "dnase_overlap" )) %>% 
-  ggplot(aes(y = zic_sig, fill = value))+
-  geom_bar() +
-  coord_flip() +
-  scale_y_discrete(limits = c("DOWN", "N.S.", "UP"), labels = c("P7", "Static", "P60")) +
-  scale_fill_manual(values = c("grey", "black"))+
-  facet_wrap(~name, labeller = labeller(name = facet_labs)) +
-  labs( y = "Differential Zic Region", x = "# of Peaks", fill = "Overlap") +
-  theme_classic()+
-  theme( panel.grid = element_blank())+
-  scale_x_continuous(expand = c(0,0))
-
-
-
-zic_overlap
-```
-
-
 ```{r motif, fig.height=4, fig.width=6}
-zic_motif = zic_peak_data %>% 
-  dplyr::filter(!(sequence_name == "no zic peak")) %>% 
-  dplyr::select(sequence_name, zic_sig, motif_id,motif_name, n_motifs_in_peak ) %>% 
-  distinct() %>% 
-  dplyr::filter(!(zic_sig == "filtered")) %>% 
-  group_by(sequence_name) %>% 
-  dplyr::mutate(unique_types = n_distinct(motif_id)) %>% 
-  ungroup() %>% 
-  dplyr::mutate(motifs = case_when( unique_types == 1 & motif_id == "no motif" ~ "No Zic Motif",
-                                    unique_types == 1 & motif_id == "ZIC1_MOUSE.H11MO.0.B" ~ "Zic1 Only",
-                                    unique_types == 1 & motif_id == "ZIC2_MOUSE.H11MO.0.C" ~ "Zic2 Only",
-                                    unique_types == 2 ~ "Zic1 and Zic2")) %>% 
-  dplyr::select(sequence_name, zic_sig, motifs) %>% 
-  distinct() %>% 
-  ggplot(aes(y = zic_sig,  fill = motifs)) +
-  geom_bar( position = "fill") +
-  coord_flip()+
-  labs( y = "Differential Zic Region", x = "Prop. of Peaks", fill = "Motif") +
-  scale_fill_manual(values = c("#143589", "#E1BE6A", "#40B0A6", "black"), limits = c("Zic1 Only", "Zic2 Only", "Zic1 and Zic2", "No Zic Motif")) +
-  scale_y_discrete(limits = c("DOWN", "N.S.", "UP"), labels = c("P7", "Static", "P60"))+
-  theme_classic() +
-  theme( panel.grid = element_blank())
-
-
-
-
-
+# plot the proportions of Zic1 and Zic2 sites in Early, Late, and Static peaks
+# > counting Zic1 and Zic2 separately 
 zic_motif2 = zic_peak_data %>% 
   dplyr::filter(!(sequence_name == "no zic peak")) %>% 
   dplyr::select(sequence_name, zic_sig, motif_id,motif_name, n_motifs_in_peak ) %>% 
@@ -130,13 +106,120 @@ zic_motif2 = zic_peak_data %>%
   coord_flip()+
   labs( y = "Differential Zic Region", x = "Prop. of Peaks", fill = "Motif") +
   scale_fill_manual(values = c("#143589", "#E1BE6A",  "Black"), limits = c("ZIC1_MOUSE.H11MO.0.B", "ZIC2_MOUSE.H11MO.0.C", "no motif"),labels = c("Zic1", "Zic2", "No Zic1/2 Motif")) +
-  scale_y_discrete(limits = c("DOWN", "N.S.", "UP"), labels = c("P7", "Static", "P60"))+
+  scale_y_discrete(limits = c("DOWN", "N.S.", "UP"), labels = c("Early", "Static", "Late"))+
   theme_classic() +
   theme( panel.grid = element_blank())
 
+#> Using Zic1 and Zic2 occurance as a separate category
+plt_dat = zic_peak_data %>% 
+  dplyr::filter(!(sequence_name == "no zic peak")) %>% 
+  dplyr::select(sequence_name, zic_sig, motif_id,motif_name, n_motifs_in_peak ) %>% 
+  distinct() %>% 
+  dplyr::filter(!(zic_sig == "filtered")) %>% 
+  group_by(sequence_name) %>% 
+  dplyr::mutate(unique_types = n_distinct(motif_id)) %>% 
+  ungroup() %>% 
+  dplyr::mutate(motifs = case_when( unique_types == 1 & motif_id == "no motif" ~ "No Zic Motif",
+                                    unique_types == 1 & motif_id == "ZIC1_MOUSE.H11MO.0.B" ~ "Zic1 Only",
+                                    unique_types == 1 & motif_id == "ZIC2_MOUSE.H11MO.0.C" ~ "Zic2 Only",
+                                    unique_types == 2 ~ "Zic1 and Zic2")) 
+
+tab = plt_dat %>% 
+  group_by(zic_sig) %>% 
+  dplyr::count(motifs) %>% 
+  ungroup() %>% 
+  pivot_wider(names_from = "zic_sig", values_from = n) %>% 
+  column_to_rownames("motifs")
+
+stat_res = bind_rows(
+tab %>% 
+  dplyr::select(UP, DOWN) %>% 
+  prop_test()%>% 
+  dplyr::mutate(group1 = "UP", group2 = "DOWN" ),
+
+tab %>% 
+  dplyr::select(UP, `N.S.`) %>% 
+  prop_test() %>% 
+  dplyr::mutate(group1 = "UP", group2 = "N.S." ),
+
+tab %>% 
+  dplyr::select(DOWN, `N.S.`) %>% 
+  prop_test() %>% 
+  dplyr::mutate(group1 = "DOWN", group2 = "N.S." )
+) %>% 
+  mutate(y.position = c(1.1, 1.03, 1.03))
+
+
+
+ zic_motif = plt_dat %>% 
+  dplyr::select(sequence_name, zic_sig, motifs) %>% 
+  distinct() %>% 
+  ggplot(aes(x = zic_sig)) +
+  stat_pvalue_manual(stat_res,label = "p = {p}", size = 3.7, tip.length = .25, bracket.shorten = 0.08)+
+  geom_bar( aes(fill = motifs), position = "fill") +
+  labs( x = "Differential Zic Region", y = "% Peaks", fill = "Motif") +
+  scale_fill_manual(values = c("#143589", "#E1BE6A", "#40B0A6", "black"), limits = c("Zic1 Only", "Zic2 Only", "Zic1 and Zic2", "No Zic Motif"), labels = c("Zic1\nOnly", "Zic2\nOnly", "Zic1\nand\nZic2", "No\nZic\nMotif")) +
+  scale_x_discrete(limits = c("DOWN","N.S.", "UP"), labels = c("Early", "Static","Late"))+
+  scale_y_continuous(labels = scales::percent_format(scale = 100))+
+  theme_classic() +
+  theme( panel.grid = element_blank(), legend.position = "bottom", legend.key.size = unit(.3, 'cm'))
+
+
+# Histograms of Zic1 and Zic2 sites in Early, late and Staic peaks
+
+zic_motif_hist =plt_dat %>% 
+  dplyr::select(sequence_name, zic_sig, motifs, n_motifs_in_peak) %>% 
+  distinct() %>% 
+  dplyr::filter(!(motifs == "No Zic Motif")) %>% 
+  ggplot(aes(x = n_motifs_in_peak)) + 
+  geom_histogram(fill = "white", color = "black", bins = 6) +
+  xlim(0,5)+
+  facet_grid(motifs~zic_sig, labeller = labeller(zic_sig = c("DOWN" = "Early", "UP" = "Late", "N.S." = "Static")))+
+  theme_classic()+
+  labs(x = "Number of Motifs in Peak", y = "Number of Peaks")
+  
+
 zic_motif
-zic_motif2
+#zic_motif2
+zic_motif_hist
 ```
+
+
+
+```{r peak overlap, fig.height=4, fig.width=6}
+
+facet_labs = c("H3K27ac", "DNase", "H3K27ac | DNase" )
+names(facet_labs) = c("k27ac_overlap", "dnase_overlap", "k27ac_dnase" )
+
+zic_overlap = zic_peak_data %>% 
+  dplyr::select(sequence_name, k27ac_sequence_name, dnase_sequence_name, ends_with("sig")) %>% 
+  distinct() %>% 
+  dplyr::filter(!(sequence_name == "no zic peak")) %>% 
+  dplyr::filter(!(zic_sig == "filtered")) %>% 
+  dplyr::mutate(k27ac_overlap = ifelse(k27ac_sequence_name !="no overlap" & k27ac_sig %in% c(zic_sig, "N.S.") , 'yes', 'no'),
+                dnase_overlap = ifelse(dnase_sequence_name !="no overlap" & dnase_sig  %in% c(zic_sig, "N.S.") , 'yes', 'no'),
+                k27ac_dnase = ifelse(k27ac_overlap == "yes" | dnase_overlap == "yes", "yes", "no" )) %>%  
+  pivot_longer(cols = c("k27ac_overlap", "dnase_overlap", "k27ac_dnase" )) %>% 
+  dplyr::mutate(name = factor(name , levels = names(facet_labs))) %>% 
+  ggplot(aes(y = zic_sig, fill = value))+
+  geom_bar() +
+  coord_flip() +
+  scale_y_discrete(limits = c("DOWN", "N.S.", "UP"), labels = c("Early", "Static", "Late")) +
+  scale_fill_manual(values = c("grey", "black"))+
+  facet_wrap(~name, labeller = labeller(name = facet_labs)) +
+  labs( y = "Differential Zic Region", x = "# of Peaks", fill = "Overlap") +
+  theme_classic()+
+  theme( panel.grid = element_blank(), legend.position = "bottom")+
+  scale_x_continuous(expand = c(0,0))
+
+
+
+zic_overlap
+```
+
+
+
+
 ```{r, fig.height= 3, fig.width=15}
 seqs= zic_peak_data %>% 
   dplyr::select(sequence_name, zic_sig, motif_id, matched_sequence, zic_Chr, zic_Start, zic_End) %>% 
@@ -269,10 +352,10 @@ zic_loci = zic_anno_dat %>%
   geom_col() +
   labs(y = "Percentage(%)", x = "Differential Zic Region") +
   theme_bw() +
-  scale_x_discrete( limits = c("P7", "N.S.", "P60")) +
+  scale_x_discrete( limits =c("P7", "N.S.", "P60"), labels = c("Early", "Static", "Late")) +
   scale_fill_manual(values = c("#bad2e1","#569ea4", "#52af45", "#f88a89", "#f06c45", "#fe870d", "#b294c7","#c7b699", "#b15928"))+
   theme( panel.grid = element_blank()) +
-  scale_y_continuous(expand = c(0,0)) + 
+  scale_y_continuous(expand = c(0,0), labels = scales::percent_format(scale = 1)) + 
   coord_flip()
 
 zic_loci2 = zic_anno_dat %>% 
@@ -284,10 +367,10 @@ zic_loci2 = zic_anno_dat %>%
   geom_col() +
   labs(y = "Percentage(%)", x = "Differential Zic Region", fill = "Region") +
   theme_classic() +
-  scale_x_discrete( limits = c("P7", "N.S.", "P60")) +
-  scale_fill_manual(values = c("#bad2e1","grey", "#b15928"))+
-  theme( panel.grid = element_blank()) +
-  scale_y_continuous(expand = c(0,0)) + 
+  scale_x_discrete( limits =c("P7", "N.S.", "P60"), labels = c("Early", "Static", "Late")) +
+  scale_fill_manual(values = c("#bad2e1","grey", "#b15928"), labels = c("Promoter\nProximal", "Gene\nBody", "Distal"))+
+  theme( panel.grid = element_blank(), legend.position = "bottom") +
+  scale_y_continuous(expand = c(0,0), labels = scales::percent_format(scale = 1)) + 
   coord_flip()
 
 zic_loci
@@ -318,51 +401,17 @@ zic_expr
 ```{r}
 
 
-ov1 = zic_peak_data %>% 
-  dplyr::select(sequence_name, k27ac_sequence_name, dnase_sequence_name, ends_with("sig")) %>% 
-  distinct() %>% 
-  dplyr::filter(!(sequence_name == "no zic peak")) %>% 
-  dplyr::filter(!(zic_sig == "filtered")) %>% 
-  dplyr::mutate(k27ac_overlap = ifelse(k27ac_sequence_name !="no overlap" & k27ac_sig %in% c(zic_sig, "N.S.") , 'yes', 'no'),
-                dnase_overlap = ifelse(dnase_sequence_name !="no overlap" & dnase_sig  %in% c(zic_sig, "N.S.") , 'yes', 'no')) %>%  
-  ggplot(aes(y = dnase_overlap, fill = k27ac_overlap))+
-  geom_bar() +
-  coord_flip() +
- # facet_wrap(~zic_sig, labeller = labeller(zic_sig = f_labs))+
-  scale_fill_manual(values = c("grey", "black"))+
-  labs( y = "DNase Overlap", x = "# of Peaks", fill = "K27ac Overlap") +
-  theme_classic()+
-  theme( panel.grid = element_blank())+
-  scale_x_continuous(expand = c(0,0))
 
-ov2= zic_peak_data %>% 
-  dplyr::select(sequence_name, k27ac_sequence_name, dnase_sequence_name, ends_with("sig")) %>% 
-  distinct() %>% 
-  dplyr::filter(!(sequence_name == "no zic peak")) %>% 
-  dplyr::filter(!(zic_sig == "filtered")) %>% 
-  dplyr::mutate(k27ac_overlap = ifelse(k27ac_sequence_name !="no overlap" & k27ac_sig %in% c(zic_sig, "N.S.") , 'yes', 'no'),
-                dnase_overlap = ifelse(dnase_sequence_name !="no overlap" & dnase_sig  %in% c(zic_sig, "N.S.") , 'yes', 'no')) %>%  
-  ggplot(aes(y = k27ac_overlap, fill = dnase_overlap))+
-  geom_bar() +
-  coord_flip() +
- # facet_wrap(~zic_sig, labeller = labeller(zic_sig = f_labs))+
-  scale_fill_manual(values = c("grey", "black"))+
-  labs( y = "K27ac Overlap", x = "# of Peaks", fill = "DNase Overlap") +
-  theme_classic()+
-  theme( panel.grid = element_blank())+
-  scale_x_continuous(expand = c(0,0))
-
-plot_grid(ov1, ov2)
 
 ```
 
-```{r, fig.height=6, fig.width=10}
+```{r, fig.height=8, fig.width=15}
 
 
 
-fig1 = plot_grid(
-  plot_grid(zic_ma, zic_expr, zic_overlap, rel_widths = c(.5, .2, .3), nrow = 1, labels = c("A","B", "C")),
-  plot_grid(lossGain, zic_motif,zic_loci2 ,rel_widths = c( .2, .4, .4), nrow = 1, labels = c( "D","E", "F")),
+ fig1 = plot_grid(
+  plot_grid(zic_ma,DistReads, lossGain,zic_motif, rel_widths = c(.3,.35 ,.15, .2), nrow = 1, labels = c("A","B", "C", "D")),
+  plot_grid(zic_motif_hist,zic_overlap, zic_loci2 ,rel_widths = c(.3, .4, .3), nrow = 1, labels = c( "E", "F", "G")),
           ncol =1
 )
 
@@ -402,13 +451,46 @@ sa3 =P60vP7_zic %>%
   theme_classic() +
   labs(x = "Mean signal of Peaks at P60")
 
+ov1 = zic_peak_data %>% 
+  dplyr::select(sequence_name, k27ac_sequence_name, dnase_sequence_name, ends_with("sig")) %>% 
+  distinct() %>% 
+  dplyr::filter(!(sequence_name == "no zic peak")) %>% 
+  dplyr::filter(!(zic_sig == "filtered")) %>% 
+  dplyr::mutate(k27ac_overlap = ifelse(k27ac_sequence_name !="no overlap" & k27ac_sig %in% c(zic_sig, "N.S.") , 'yes', 'no'),
+                dnase_overlap = ifelse(dnase_sequence_name !="no overlap" & dnase_sig  %in% c(zic_sig, "N.S.") , 'yes', 'no')) %>%  
+  ggplot(aes(y = dnase_overlap, fill = k27ac_overlap))+
+  geom_bar() +
+  coord_flip() +
+ # facet_wrap(~zic_sig, labeller = labeller(zic_sig = f_labs))+
+  scale_fill_manual(values = c("grey", "black"))+
+  labs( y = "DNase Overlap", x = "# of Peaks", fill = "K27ac Overlap") +
+  theme_classic()+
+  theme( panel.grid = element_blank())+
+  scale_x_continuous(expand = c(0,0))
+
+ov2= zic_peak_data %>% 
+  dplyr::select(sequence_name, k27ac_sequence_name, dnase_sequence_name, ends_with("sig")) %>% 
+  distinct() %>% 
+  dplyr::filter(!(sequence_name == "no zic peak")) %>% 
+  dplyr::filter(!(zic_sig == "filtered")) %>% 
+  dplyr::mutate(k27ac_overlap = ifelse(k27ac_sequence_name !="no overlap" & k27ac_sig %in% c(zic_sig, "N.S.") , 'yes', 'no'),
+                dnase_overlap = ifelse(dnase_sequence_name !="no overlap" & dnase_sig  %in% c(zic_sig, "N.S.") , 'yes', 'no')) %>%  
+  ggplot(aes(y = k27ac_overlap, fill = dnase_overlap))+
+  geom_bar() +
+  coord_flip() +
+ # facet_wrap(~zic_sig, labeller = labeller(zic_sig = f_labs))+
+  scale_fill_manual(values = c("grey", "black"))+
+  labs( y = "K27ac Overlap", x = "# of Peaks", fill = "DNase Overlap") +
+  theme_classic()+
+  theme( panel.grid = element_blank())+
+  scale_x_continuous(expand = c(0,0))
 
 
 
 
 
 
-s1 =plot_grid(sa1, ov2, sa2, sa3, labels = c("A", "B", "C", "D"), nrow = 2)
+s1 =plot_grid(sa1, ov2, labels = c("A", "B"), nrow = 1, rel_widths = c(.4, .6))
 png("../figures/supp_figure1.png", height = 7, width = 8, units = "in", res = 300)
 s1
 dev.off()
