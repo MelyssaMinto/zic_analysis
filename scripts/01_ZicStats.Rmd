@@ -18,6 +18,77 @@ library(pheatmap)
 library(ggseqlogo)
 library(BSgenome.Mmusculus.UCSC.mm10)
 library(ggforce)
+
+ # set scheme
+scheme <- getScheme(name=getOption("Gviz.scheme"))
+scheme$GdObject$col.axis = "white"
+scheme$GdObject$background.title = "black"
+scheme$GdObject$fontcolor = "black"
+scheme$GdObject$rotation.title = 90
+scheme$GeneRegionTrack$transcriptAnnotation = "symbol"
+scheme$GeneRegionTrack$col = "black"
+scheme$GeneRegionTrack$fill = "black"
+scheme$GeneRegionTrack$collapseTranscripts = FALSE
+scheme$DataTrack$fill.histogram = "darkblue"
+scheme$DataTrack$col.histogram = "darkblue"
+scheme$GdObject$col.border.title = "transparent"
+scheme$HighlightTrack$col = "grey"
+scheme$HighlightTrack$fill = "#e3e8ff"
+addScheme(scheme, "myScheme")
+options(Gviz.scheme="myScheme")
+options(ucscChromosomeNames=FALSE)
+
+```
+```{r}
+#' Title
+#'
+#' @param gene - gene to plot
+#' @param tracks - GViz tracks to plot
+#' @param expand_l - Number of base-pairs to expand to the left
+#' @param expand_r - Number of base-pairs to expand to the right
+#' @param ylim - y-axis lim
+#'
+#' @return 
+#' @export
+
+
+plot_track <- function(tracks, from, to, chr,highlight, w= 1000,s, expand_l= 0, expand_r = 0, ylim = c(0,3)){
+  
+  # setting up plot inputs
+ 
+  # > gene track
+  start = from - expand_l
+  end = to + expand_r  
+  cat(chr, ":", start, "-", end)
+  
+  gencode <- UcscTrack(genome = "mm10", chromosome = chr,
+                      track = "All GENCODE VM25", from = start, to = end,
+                      trackType = "GeneRegionTrack",
+                      rstarts = "exonStarts", rends = "exonEnds",
+                      gene = "name",  symbol = "name2",
+                      transcript = "name", strand = "strand",
+                      name = "transcripts", showID=TRUE)
+  
+  # > highlight track
+  ht1 <- HighlightTrack(trackList = tracks, start = highlight, width = w, chromosome = chr, )
+  
+
+
+  ts = list(ht1, gencode, genomeAxis)
+    #plot
+    plotTracks(ts,  
+               from=start,
+               to=end, 
+               chromosome=chr,
+               type="hist",
+               window = 1000,
+               ylim = ylim,
+               sizes = s)
+
+  
+  
+  
+}
 ```
 
 ```{r}
@@ -76,7 +147,7 @@ DistReads=  P60vP7_zic %>%
 DistReads
 ```
 
-```{r}
+```{r loss-gain}
 low_exp = 10
 lossGain = P60vP7_zic %>% 
   dplyr::filter(p7_mean <= low_exp | p60_mean <= low_exp) %>% 
@@ -88,11 +159,62 @@ lossGain = P60vP7_zic %>%
   labs(y = "# Peaks Mean \nSignal < 10 at P7 or P60", x ="Change")
 lossGain
 
- P60vP7_zic %>% 
+P60vP7_zic %>% 
+  dplyr::filter(p7_mean <= low_exp | p60_mean <= low_exp) %>% 
+  dplyr::filter(zic_sig %in% c("UP", "DOWN")) %>%  
+   dplyr::select(Chr, Start, End) %>%
+   write_tsv("../results/invivo/DiffExp_ZicChIP/complete_gain_loss.bed", col_names = F)
+ 
+P60vP7_zic %>% 
   dplyr::filter(p7_mean <= low_exp | p60_mean <= low_exp) %>% 
   dplyr::filter(zic_sig %in% c("UP", "DOWN")) %>% 
   dplyr::count(zic_sig)
+
+
+
 ```
+
+```{r loss-gain ex, fig.height=6, fig.width=15}
+# formatting data
+genomeAxis <- GenomeAxisTrack(name="MyAxis") 
+customFromTxDb <- GeneRegionTrack(TxDb.Mmusculus.UCSC.mm10.knownGene)
+# make bigwig tracks
+p7_zic_bw1 <- DataTrack(import.bw("../sequencing_data/preprocessed_data/zic_chip/SRR1557091/SRR1557091_norm.bw", as="GRanges"), 
+                   genome = "mm10",name = "Zic \nP7", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+p7_zic_bw2 <- DataTrack(import.bw("../sequencing_data/preprocessed_data/zic_chip/SRR1557092/SRR1557092_norm.bw", as="GRanges"), 
+                   genome = "mm10",name = "Zic \nP7", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+p60_zic_bw1 <- DataTrack(import.bw("../sequencing_data/preprocessed_data/zic_chip/SRR1557093/SRR1557093_norm.bw", as="GRanges"), 
+                   genome = "mm10",name = "Zic \nP60", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+p60_zic_bw2 <- DataTrack(import.bw("../sequencing_data/preprocessed_data/zic_chip/SRR1557094/SRR1557094_norm.bw", as="GRanges"), 
+                   genome = "mm10",name = "Zic \nP60", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+
+tracks = list(p7_zic_bw1, 
+              p7_zic_bw2, 
+              p60_zic_bw1, 
+              p60_zic_bw2)
+# examples:
+  
+  
+
+
+
+
+png("../figures/loss_gain_1.png", units = "in", height = 3.5, width = 12, res = 300)
+plot_track(tracks,from = 73734300, to = 73757154,chr = "chr18" , highlight = c(73738700),w = 800, s = c(1,1,1,1,.5,1)) ##
+dev.off()
+
+png("../figures/loss_gain_2.png", units = "in", height = 3.5, width = 12, res = 300)
+plot_track(tracks,from = 72868074,to = 72940073,chr = "chr18", highlight = c(72871933, 72887307, 72929318, 72931785 ),s = c(1,1,1,1,.5,1) ) ##
+dev.off()
+
+lg1 = rasterGrob(readPNG("../figures/loss_gain_1.png"))
+lg2 = rasterGrob(readPNG("../figures/loss_gain_2.png"))
+
+lg_examples = plot_grid(lg1, lg2, ncol = 1)
+
+```
+
+
 ```{r motif, fig.height=4, fig.width=6}
 # plot the proportions of Zic1 and Zic2 sites in Early, Late, and Static peaks
 # > counting Zic1 and Zic2 separately 
@@ -186,12 +308,12 @@ zic_motif_hist
 
 
 
-```{r peak overlap, fig.height=4, fig.width=6}
+```{r peak overlap, fig.height=6, fig.width=8}
 
 facet_labs = c("H3K27ac", "DNase", "H3K27ac | DNase" )
 names(facet_labs) = c("k27ac_overlap", "dnase_overlap", "k27ac_dnase" )
 
-zic_overlap = zic_peak_data %>% 
+plt_dat = zic_peak_data %>% 
   dplyr::select(sequence_name, k27ac_sequence_name, dnase_sequence_name, ends_with("sig")) %>% 
   distinct() %>% 
   dplyr::filter(!(sequence_name == "no zic peak")) %>% 
@@ -200,17 +322,53 @@ zic_overlap = zic_peak_data %>%
                 dnase_overlap = ifelse(dnase_sequence_name !="no overlap" & dnase_sig  %in% c(zic_sig, "N.S.") , 'yes', 'no'),
                 k27ac_dnase = ifelse(k27ac_overlap == "yes" | dnase_overlap == "yes", "yes", "no" )) %>%  
   pivot_longer(cols = c("k27ac_overlap", "dnase_overlap", "k27ac_dnase" )) %>% 
-  dplyr::mutate(name = factor(name , levels = names(facet_labs))) %>% 
-  ggplot(aes(y = zic_sig, fill = value))+
-  geom_bar() +
-  coord_flip() +
-  scale_y_discrete(limits = c("DOWN", "N.S.", "UP"), labels = c("Early", "Static", "Late")) +
+  dplyr::mutate(name = factor(name , levels = names(facet_labs))) 
+
+test_dat = plt_dat %>% 
+  dplyr::select(name, value, zic_sig) %>% 
+  group_by(zic_sig,name) %>% 
+  dplyr::count(value) %>%  
+  ungroup() %>% 
+  pivot_wider(names_from = zic_sig, values_from = n)
+
+stat_res = bind_rows(
+test_dat %>% 
+  dplyr::filter(name == "dnase_overlap") %>% 
+  dplyr::select(-name) %>% 
+  column_to_rownames("value") %>% 
+  pairwise_chisq_gof_test() %>% 
+  dplyr::mutate(name = "dnase_overlap"),
+  
+test_dat %>% 
+  dplyr::filter(name == "k27ac_overlap") %>% 
+  dplyr::select(-name) %>% 
+  column_to_rownames("value") %>% 
+  pairwise_chisq_gof_test() %>% 
+  dplyr::mutate(name = "k27ac_overlap"),
+
+test_dat %>% 
+  dplyr::filter(name == "k27ac_dnase") %>% 
+  dplyr::select(-name) %>% 
+  column_to_rownames("value") %>% 
+  pairwise_chisq_gof_test() %>% 
+  dplyr::mutate(name = "k27ac_dnase")
+) %>%   mutate(y.position = rep(c(45000, 48000, 42000), 3),
+               p.adj.text = ifelse(p.adj == 0, "0", format(p.adj, scientific=T, digits = 2)),
+               name = factor(name , levels = names(facet_labs)))
+
+
+
+zic_overlap = plt_dat %>% 
+  ggplot(aes(x = zic_sig))+
+  stat_pvalue_manual(stat_res,label = "p = {p.adj.text}", size = 3.7 )+
+  geom_bar(aes(fill = value)) +
+  scale_x_discrete(limits = c("DOWN", "N.S.", "UP"), labels = c("Early", "Static", "Late")) +
   scale_fill_manual(values = c("grey", "black"))+
   facet_wrap(~name, labeller = labeller(name = facet_labs)) +
-  labs( y = "Differential Zic Region", x = "# of Peaks", fill = "Overlap") +
+  labs( x = "Differential Zic Region", y= "# of Peaks", fill = "Overlap") +
   theme_classic()+
   theme( panel.grid = element_blank(), legend.position = "bottom")+
-  scale_x_continuous(expand = c(0,0))
+  scale_y_continuous(expand = c(0,0), limits = c(0, 50000))
 
 
 
@@ -346,6 +504,7 @@ plot_grid(zic1_logo, zic2_logo, nrow = 1, labels = c("Zic1", "Zic2"), hjust = -2
 
 ```{r loci, fig.height=4, fig.width=6}
 
+
 zic_loci = zic_anno_dat %>% 
   dplyr::mutate(Feature = fct_relevel(Feature, unique(Feature))) %>% 
   ggplot(aes(x = id, y = Frequency, fill = Feature))+
@@ -409,13 +568,20 @@ zic_expr
 
 
 
- fig1 = plot_grid(
-  plot_grid(zic_ma,DistReads, lossGain,zic_motif, rel_widths = c(.3,.35 ,.15, .2), nrow = 1, labels = c("A","B", "C", "D")),
-  plot_grid(zic_motif_hist,zic_overlap, zic_loci2 ,rel_widths = c(.3, .4, .3), nrow = 1, labels = c( "E", "F", "G")),
+#  fig1 = plot_grid(
+#   plot_grid(zic_ma,DistReads, lossGain,zic_motif, rel_widths = c(.3,.35 ,.15, .2), nrow = 1, labels = c("A","B", "C", "D")),
+#   plot_grid(zic_motif_hist,zic_overlap, zic_loci2 ,rel_widths = c(.3, .4, .3), nrow = 1, labels = c( "E", "F", "G")),
+#           ncol =1
+# )
+
+fig1 = plot_grid(
+  plot_grid(zic_ma, lossGain, lg_examples, rel_widths = c(.35,.15 ,.5), nrow = 1, labels = c("A","B", "C")),
+  plot_grid(zic_motif,zic_overlap, zic_loci2 ,rel_widths = c(.25, .5, .25), nrow = 1, labels = c( "D", "E", "F")),
           ncol =1
 )
-
-png("../figures/figure1.png", height = 6, width = 12, units = "in", res = 300)
+ 
+ 
+png("../figures/figure1.png", height = 8, width = 15, units = "in", res = 300)
 fig1
 dev.off()
 
@@ -490,7 +656,7 @@ ov2= zic_peak_data %>%
 
 
 
-s1 =plot_grid(sa1, ov2, labels = c("A", "B"), nrow = 1, rel_widths = c(.4, .6))
+s1 =plot_grid(sa1, DistReads,zic_motif_hist,  labels = c("A", "B", "C"), nrow = 2)
 png("../figures/supp_figure1.png", height = 7, width = 8, units = "in", res = 300)
 s1
 dev.off()
