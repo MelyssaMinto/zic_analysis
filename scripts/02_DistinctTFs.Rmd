@@ -18,6 +18,7 @@ library(AnnotationDbi)
 library(org.Mm.eg.db)
 
  # set scheme
+ # set scheme
 scheme <- getScheme(name=getOption("Gviz.scheme"))
 scheme$GdObject$col.axis = "white"
 scheme$GdObject$background.title = "black"
@@ -30,30 +31,18 @@ scheme$GeneRegionTrack$collapseTranscripts = FALSE
 scheme$DataTrack$fill.histogram = "darkblue"
 scheme$DataTrack$col.histogram = "darkblue"
 scheme$GdObject$col.border.title = "transparent"
-
+scheme$HighlightTrack$col = "grey"
+scheme$HighlightTrack$fill = "#e3e8ff"
 addScheme(scheme, "myScheme")
 options(Gviz.scheme="myScheme")
 options(ucscChromosomeNames=FALSE)
-# formatting data
-genomeAxis <- GenomeAxisTrack(name="MyAxis") 
-customFromTxDb <- GeneRegionTrack(TxDb.Mmusculus.UCSC.mm10.knownGene)
 ```
 
 ```{r define functions}
 
-#' Title
-#'
-#' @param gene - gene to plot
-#' @param tracks - GViz tracks to plot
-#' @param expand_l - Number of base-pairs to expand to the left
-#' @param expand_r - Number of base-pairs to expand to the right
-#' @param ylim - y-axis lim
-#'
-#' @return 
-#' @export
 
 
-plot_track <- function(gene, tracks,  expand_l= 0, expand_r = 0, ylim = c(0,3)){
+plot_track <- function(gene, tracks, highlight, w = 1000, expand_l= 0, expand_r = 0, ylim = c(0,3)){
   # getting gene info
   id = mapIds(org.Mm.eg.db, keys =gene , column ="ENTREZID", keytype="SYMBOL")
   info = biomaRt::select(TxDb.Mmusculus.UCSC.mm10.knownGene, keys = id  , columns=c("TXNAME", "TXSTART", "TXEND", "TXCHROM"), keytype="GENEID")
@@ -64,7 +53,8 @@ plot_track <- function(gene, tracks,  expand_l= 0, expand_r = 0, ylim = c(0,3)){
   # setting up plot inputs
   start = start - expand_l
   end = end + expand_r  
-  
+  cat(chr, start, end)
+  # getting gene track
   gencode <- UcscTrack(genome = "mm10", chromosome = chr,
                       track = "All GENCODE VM25", from = start, to = end,
                       trackType = "GeneRegionTrack", 
@@ -72,13 +62,22 @@ plot_track <- function(gene, tracks,  expand_l= 0, expand_r = 0, ylim = c(0,3)){
                       gene = "name",  symbol = "name2", 
                       transcript = "name", strand = "strand",
                       name = "transcripts", showID=TRUE)
+ 
   
-  tracks$gencode = gencode
-  tracks$axis = genomeAxis
+    # > highlight track
+  if(is.null(highlight)){
+    # create trackset for plotting
+    ts = list(tracks, gencode, genomeAxis)
+  }else{
+    # creating trackset for plotting with highlighting
+    ht1 <- HighlightTrack(trackList = tracks, start = highlight, width = w, chromosome = chr)
+    ts = list(ht1, gencode, genomeAxis)
+  }
 
-  s = rep(1, length(tracks))
     #plot
-    plotTracks(tracks,  
+    # > create a vector of track sizes
+    s = c(rep(1, length(tracks) ), 0.5, 1)
+    plotTracks(ts,  
                from=start,
                to=end, 
                chromosome=chr,
@@ -86,43 +85,62 @@ plot_track <- function(gene, tracks,  expand_l= 0, expand_r = 0, ylim = c(0,3)){
                window = 1000,
                ylim = ylim,
                sizes = s)
-
-  
   
   
 }
 
 plot_bart_homer <- function(cond1, bart_data, homer_data, s, title){
+  # plot the TFs enriched in BArt and Homer analyses
   dat1 = bart_data %>% 
-  dplyr::filter(!grepl("ZIC", TF)) %>% 
-  dplyr::filter(gene_sig %in% c("UP", "DOWN")) %>% 
-  dplyr::filter(bart_sig == "Enriched") %>% 
-  dplyr::mutate(label_f = ifelse(str_to_lower(TF) != str_to_lower(SYMBOL), paste0(TF, "(", SYMBOL, ")"), TF)) 
-  
+    # filter out Zics
+    dplyr::filter(!grepl("ZIC", TF)) %>% 
+    # filter out Zics
+    dplyr::filter(gene_sig %in% c("UP", "DOWN")) %>% 
+    # filter for factors significantly enriched
+    dplyr::filter(bart_sig == "Enriched") %>% 
+    # create a label: TF ( Mapped Gene)
+    dplyr::mutate(label_f = ifelse(str_to_lower(TF) != str_to_lower(SYMBOL), paste0(TF, "(", SYMBOL, ")"), TF)) 
+    
   dat2 = homer_data %>% 
-  dplyr::filter(!grepl("ZIC", SYMBOL, ignore.case = T)) %>% 
-  dplyr::filter(gene_sig %in% c("UP", "DOWN")) %>% 
-  dplyr::filter(`q-value (Benjamini)` < 0.05) %>% 
-   dplyr::mutate(label_f = ifelse(str_to_lower(name) != str_to_lower(SYMBOL), paste0(name, "(", SYMBOL, ")"), name))
-  
+     # filter out Zics
+    dplyr::filter(!grepl("ZIC", SYMBOL, ignore.case = T)) %>% 
+    # filter out Zics
+    dplyr::filter(gene_sig %in% c("UP", "DOWN")) %>% 
+    # filter for factors significantly enriched
+    dplyr::filter(`q-value (Benjamini)` < 0.05) %>% 
+    # create a label: TF ( Mapped Gene)
+    dplyr::mutate(label_f = ifelse(str_to_lower(name) != str_to_lower(SYMBOL), paste0(name, "(", SYMBOL, ")"), name))
+    
+  # get a list of common signifincant TFs between BART and HOMER data sets 
   common_sig_TFs = intersect(str_to_title(dat1$SYMBOL), str_to_title(dat2$SYMBOL))
+  # get a list of common TFs between BART and HOMER data sets 
   common_TFs = intersect(str_to_title(bart_data$SYMBOL), str_to_title(homer_data$SYMBOL))
 
- 
+  # wrangling data for plotting
    facet_labels = c("ChIP Enrichment", "Motif Enrichment")
    names(facet_labels) = c("bart", "homer")
   
     bind_rows(list(bart = dat1 %>% 
+                                   # addimg * to label if TF is significant in BART and HOPMER
                      dplyr::mutate(label_f = ifelse(str_to_title(SYMBOL) %in% common_sig_TFs, paste0("*", label_f), str_to_title(label_f)),
+                                   # making the label blue if TF is in BART and HOPMER databases
                                    label_f = ifelse(str_to_title(SYMBOL) %in% common_TFs, paste0('<span style="color:blue;font-weight:bold">', label_f, '</span>' ), label_f),
+                                   # sorting TFs by adjusted p-value
                                    label_f = fct_reorder(as.factor(label_f), get(cond1))) %>% 
+                     # renaming column that holds p values for merging 
                      dplyr::rename(enrich_stat = !!cond1) %>% 
+                     # select relevant data 
                      dplyr::select(enrich_stat, label_f),
                    homer = dat2 %>% 
+                                   # addimg * to label if TF is significant in BART and HOPMER
                      dplyr::mutate(label_f = ifelse(str_to_title(SYMBOL) %in% common_sig_TFs, paste0("*", label_f), str_to_title(label_f)),
+                                   # making the label blue if TF is in BART and HOPMER databases
                                    label_f = ifelse(str_to_title(SYMBOL) %in% common_TFs, paste0('<span style="color:blue;font-weight:bold">', label_f, '</span>' ), label_f),
+                                   # sorting TFs by adjusted p-value
                                    label_f = fct_reorder(as.factor(label_f), `q-value (Benjamini)`)) %>% 
+                     # renaming column that holds p values for merging
                       dplyr::rename(enrich_stat = `q-value (Benjamini)`) %>% 
+                     # select relevant data 
                       dplyr::select(enrich_stat, label_f)),
                    .id = "id") %>% 
       ggplot(aes(y = enrich_stat, x = label_f, fill = id)) +
@@ -148,35 +166,38 @@ plot_bart_homer <- function(cond1, bart_data, homer_data, s, title){
 
 }
 
-
-plot_distinct <- function(data, cond1, cond2, label1, label2) {
+plot_distinct <- function(data, cond1, cond2, label1, label2, table_tilte = NULL) {
+  # wrangle data for plotting
   dis = data %>% 
+    # filter TFs that are DE
     dplyr::filter(gene_sig %in% c("UP", "DOWN")) %>% 
-
+    # Label the distict TFs only
     dplyr::mutate(label = case_when(enriched_in %in% "Similar Enrichment" ~ "" ,
                                     TRUE ~ str_to_title(TF))) %>% 
+    # select relative columns
     dplyr::select(-SYMBOL, -gene_sig, -ends_with("mean")) %>% 
     distinct() 
   
+  # create a table showing how many distinctly enriched TFs there were
  dis_table = dis$enriched_in %>% 
-   fct_relabel(~ str_to_title(gsub("_", " ", .x))) %>% 
+   fct_relabel(~ str_to_title(gsub("_|_all", " ", .x))) %>% 
    fct_count()
-colnames(dis_table) = c("Enrichment", "n")
+ colnames(dis_table) = c( paste0(table_tilte, "Enrichment"), "n")
  
-  dis %>% 
+ # plot the distinct TFs 
+ dis %>% 
     ggplot(aes(x = -log10(get(cond1)), y = -log10(get(cond2)), color = enriched_in, label = label )) +
     geom_point(size = 0.5) +
-      geom_text_repel(show.legend = F, max.overlaps = 10) +
-      theme_classic() +
-      labs(x = paste0(gsub("Distinct ", " ", label1), " -log10(adj p-val)"), y = paste0(gsub("Distinct ", " ", label2), " -log10(adj p-val)") ) +
-      scale_color_manual(name = "", limits = c(cond1, cond2, "Similar Enrichment"), labels = c(label1, label2, "Similar \nEnrichment"), values = c("dodgerblue4", "darkorange4", "grey") ) +
-     annotate(geom = "table", label = list(dis_table), x = 5, y = 5, fill = "white" ,  table.theme = ttheme_gtlight)+
-     scale_y_continuous(limits = c(0, 5)) +
+    geom_text_repel(show.legend = F, max.overlaps = 10) +
+    theme_classic() +
+    labs(x = paste0(gsub("Distinct ", " ", label1), " -log10(adj p-val)"), y = paste0(gsub("Distinct ", " ", label2), " -log10(adj p-val)") ) +
+    scale_color_manual(name = "", limits = c(cond1, cond2, "Similar Enrichment"), labels = c(label1, label2, "Similar \nEnrichment"), values = c("dodgerblue4", "darkorange4", "grey") ) +
+    annotate(geom = "table", label = list(dis_table), x = 5, y = 5, fill = "white" ,  table.theme = ttheme_gtlight)+
+    scale_y_continuous(limits = c(0, 5)) +
     scale_x_continuous(limits = c(0, 5)) +
-      theme(legend.position = "bottom") +
-       guides(colour = guide_legend(override.aes = list(size=3)))
+    theme(legend.position = "bottom") +
+    guides(colour = guide_legend(override.aes = list(size=3)))
 }
-
 
 distinct_lolipop  <- function(data, cond1, cond2, gene_expr_level) {
   # plot set up
@@ -184,37 +205,52 @@ distinct_lolipop  <- function(data, cond1, cond2, gene_expr_level) {
    names(facet_labels) = c("Early", "Late")
    
   # extract data
-  d1 = data %>%  dplyr::mutate(enrich_sig = ifelse(enriched_in == cond1, get(cond1), get(cond2))) %>% 
+  d1 = data %>%  
+    # determine whether each TF is enriched in one set v another set
+    dplyr::mutate(enrich_sig = ifelse(enriched_in == cond1, get(cond1), get(cond2))) %>% 
+    # filter for significant TFs in set1
     dplyr::filter(enriched_in %in% c(cond1)) %>% 
+    # remove significance column
     dplyr::select(-all_of(cond1)) %>% 
-    #dplyr::filter(baseMean > gene_expr_level) %>% 
+    # cleaning up TF names and creating label for plotting
     dplyr::mutate(TF = gsub("-", "", TF)) %>% 
     dplyr::mutate(label = ifelse(str_to_lower(TF) != str_to_lower(SYMBOL), paste0(TF, "(", SYMBOL, ")"), TF),
                   label = fct_reorder(label, -enrich_sig)) 
   
   d2 =  data %>% 
+    # determine whether each TF is enriched in one set v another set
     dplyr::mutate(enrich_sig = ifelse(enriched_in == cond1, get(cond1), get(cond2))) %>% 
+    # filter for significant TFs in set2
     dplyr::filter(enriched_in %in% c(cond2)) %>% 
+     # remove significance column
     dplyr::select( -all_of(cond2)) %>% 
-    #dplyr::filter(baseMean > gene_expr_level) %>% 
+    # cleaning up TF names and creating label for plotting
     dplyr::mutate(TF = gsub("-", "", TF)) %>% 
     dplyr::mutate(label = ifelse(str_to_lower(TF) != str_to_lower(SYMBOL), paste0(TF, "(", SYMBOL, ")"), TF),
                   label = fct_reorder(label, -enrich_sig))
   
-  
+  # plotting data
     bind_rows(
       list( Late = d2  %>%
+              # filter out ot time specific gene expression
               dplyr::filter(p60_mean > gene_expr_level) %>% 
+              # filter for time specific gene regulation
               dplyr::filter(gene_sig %in% c("UP")) %>% 
+              # sort TF by log fold change
               dplyr::mutate(label = fct_reorder(label, log2FoldChange)) %>% 
+              # renaming gene means for plotting
               dplyr::rename(plt_mean = p60_mean),
             Early = d1 %>% 
+              # filter out ot time specific gene expression
               dplyr::filter(p7_mean > gene_expr_level) %>% 
+               # filter for time specific gene regulation
               dplyr::filter(gene_sig %in% c( "DOWN")) %>% 
+              # sort TF by log fold change
               dplyr::mutate(label = fct_reorder(label, -log2FoldChange))%>% 
+              # renaming gene means for plotting
               dplyr::rename(plt_mean = p7_mean)),
       .id = "id") %>% 
-      
+    # plot  
     ggplot(aes(y = log2FoldChange , x = label, color = enrich_sig, size = plt_mean )) +
     geom_segment( aes(x=label, xend=label, y=0, yend=log2FoldChange, size = 1), color = "grey", show.legend = FALSE) +
     geom_hline(yintercept = 0, color = "black", size = .5, linetype = "dashed") +
@@ -234,27 +270,31 @@ distinct_lolipop  <- function(data, cond1, cond2, gene_expr_level) {
 
 }
 
-
-
 plot_overlap <-function(peakset, overlap, name){
-
-  
   # prepping data for join
+  # > peakset of choice
   peakset = peakset %>% 
+    # create a unique peak identifier chr:start-end
     dplyr::mutate(peak_name = paste0(X1, ":", X2,"-", X3)) %>% 
+    # select unique id 
     dplyr::select(peak_name) %>% 
     distinct() %>% 
     ungroup()
   
+  # > overlaping peaks output from bedtools
   overlap = overlap %>% 
+     # create a unique peak identifier for zic peaks and peakset of choice
       dplyr::mutate(zic_name = paste0(X1, ":", X2,"-", X3),
                     peak_name = paste0(X4, ":", X5,"-", X6)) %>% 
     dplyr::select(peak_name, zic_name) %>% 
     distinct() %>% 
     ungroup()
   
+  # > Zic peak DE data
   zic_peakset = P60vP7_zic %>% 
+    # # create a unique peak identifier chr:start-end
     dplyr::mutate(zic_name = paste0(Chr, ":", Start,"-", End)) %>% 
+    # select relevant columns for plotting
     dplyr::select(zic_name, zic_sig) %>% 
     distinct() %>% 
     ungroup()
@@ -267,14 +307,17 @@ plot_overlap <-function(peakset, overlap, name){
     ungroup()
   
 
-  # plot 
+  # plot1: How many peaks intersect with Zic peaks? What proportion of peaks 
+  # have Zic co-occupancy
   p1 = data %>% 
     drop_na(peak_name) %>% 
     distinct()  %>% 
+                  # create columns for peakset  overlap
     dplyr::mutate(overlap = ifelse(!is.na(zic_name) , "yes", "no"),
                   fill_o = ifelse(overlap == "yes", zic_sig, "no"), 
                   fill_o = fct_relevel(fill_o, c("no","DOWN", "N.S.", "UP")), 
                   peak = paste0(name, " Peak")) %>% 
+    # plot
     ggplot(aes(y = peak, fill = fill_o)) +
     geom_bar(position = "fill") +
     coord_flip() +
@@ -286,6 +329,7 @@ plot_overlap <-function(peakset, overlap, name){
   
 
   # compare proportion of overlap between Differential Zic Regions
+  # statistical test = chi_sq
   results = data %>% 
     drop_na(zic_name) %>% 
     distinct()  %>% 
@@ -299,6 +343,8 @@ plot_overlap <-function(peakset, overlap, name){
     chisq_test()
 
   
+  # plot2: Of the Zic peaks, how many of those are occupied by peakset of 
+  # choice
   p2 = data %>% 
     drop_na(zic_name) %>% 
     distinct()  %>% 
@@ -321,8 +367,8 @@ plot_overlap <-function(peakset, overlap, name){
 
 }
 
-
 make_track <- function(peaks, name){
+  # make annotation track for overlap of peaks
   AnnotationTrack(GRanges(seqnames = peaks$X1, ranges = IRanges(start = peaks$X2, end = peaks$X3)),
                                   genome = "mm10", name = name, col.title = "white", col.border.title = "black",fill = "black")
 }
@@ -340,8 +386,8 @@ late_activ_homer = read_tsv("../results/invivo/homer_results/P60_peaks_UpGenes/h
 late_repr_homer = read_tsv("../results/invivo/homer_results/P60_peaks_DOWNGenes/homer_results.tsv")
 early_homer = read_tsv("../results/invivo/homer_results/early/homer_results.tsv")
 late_homer = read_tsv("../results/invivo/homer_results/late/homer_results.tsv")
-early_all_homer = read_tsv("../results/invivo/homer_results/P60_peaks_DOWNGenes/homer_results.tsv")
-late_all_homer = read_tsv("../results/invivo/homer_results/P60_peaks_UpGenes//homer_results.tsv")
+early_all_homer = read_tsv("../results/invivo/homer_results/P60vP7_DOWN/homer_results.tsv")
+late_all_homer = read_tsv("../results/invivo/homer_results/P60vP7_UP/homer_results.tsv")
 
 # Motif Enrichment Comparisons
 earlyVlate_act_hom = read_tsv("../results/invivo/peak_gene/rrho/early_late_activating_homer.txt")
@@ -431,10 +477,10 @@ a = rasterGrob(readPNG("../figures/rrho_workflow.png"), interpolate = T)
 ![](../figures/rrho_workflow.png)
 ```{r distinct, fig.height=4, fig.width=8}
 # Early v Late
-c1 = plot_distinct(earlyvlate, "early", "late", "Distinct Early Looped", "Distinct Late Looped" )
-d1 = plot_distinct(earlyvlate_all, "early_all", "late_all", "Distinct Early", "Distinct Late" )
-ch1 = plot_distinct(earlyvlate_hom, "early", "late", "Distinct Early Looped", "Distinct Late Looped" )
-dh1 = plot_distinct(earlyvlate_all_hom, "early_all", "late_all", "Distinct Early", "Distinct Late" )
+c1 = plot_distinct(earlyvlate, "early", "late", "Distinct Early Looped", "Distinct Late Looped" , table_tilte = "Bart\n")
+d1 = plot_distinct(earlyvlate_all, "early_all", "late_all", "Distinct Early", "Distinct Late", table_tilte = "Bart\n" )
+ch1 = plot_distinct(earlyvlate_hom, "early", "late", "Distinct Early Looped", "Distinct Late Looped", table_tilte = "Homer\n"  )
+dh1 = plot_distinct(earlyvlate_all_hom, "early_all", "late_all", "Distinct Early", "Distinct Late" , table_tilte = "Homer\n" )
 
 
 
@@ -445,14 +491,14 @@ plot_grid(d1, dh1, labels = c("Bart", "Homer"), hjust = -2)
 
 
 
-```{r geneExpression, fig.height=3, fig.width=4}
+```{r distinct lolipop, fig.height=6, fig.width=8}
 # using the 25-pecentile as a cut off for low reads
 gene_expr_filt = quantile(earlyvlate_all$p7_mean, na.rm=T)[2]
 
 chip = distinct_lolipop(earlyvlate, "early", "late", gene_expr_filt )
 motif = distinct_lolipop(earlyvlate_hom, "early", "late", gene_expr_filt )
 legend_plt = get_legend(motif)
-d_tf = plot_grid(plot_grid(motif + theme(legend.position = "none"), chip + theme(legend.position = "none"), nrow = 1, labels = c("C", "D")),
+d_tf = plot_grid(plot_grid(motif + theme(legend.position = "none"), chip + theme(legend.position = "none"), nrow = 1, labels = c("E", "F")),
           legend_plt,
           rel_heights = c(.9, .1),
           ncol = 1)
@@ -470,184 +516,9 @@ d_tf_all = plot_grid(plot_grid(motif_all + theme(legend.position = "none"), chip
 
 d_tf_all
 ```
-
-# Distinctly Enriched TFs
-
-```{r figure 3, fig.height=6, fig.width=12}
-
-# looped peaks
-looped_fig = 
-          plot_grid(plot_grid(ch1, c1, ncol = 1, labels = c("A", "B"), hjust = 0),
-          d_tf,
-          rel_widths = c(.4, .6)
-)
-
-# all peaks
-all_fig = plot_grid(
-          plot_grid(dh1, d1, ncol = 1, labels = c("A", "B"), hjust = 0),
-         d_tf_all ,
-          ncol = 2,
-         rel_widths = c(.4, .6)
-)
-
-
-
-# png("../figures/figure2.png", height = 6, width = 12, res = 300, units = "in" )
-all_fig
-# dev.off()
-
-
-# png("../figures/figure2_loop.png", height = 6, width = 12, res = 300, units = "in" )
-looped_fig
-# dev.off()
-
-
-
-```
-Figure 3. Distinct TFs enriched between early and late regulatory modes. In-vivo ChIP overlap enrichment of Zic Zic ChIP peaks that were separated by mapped gene expression by early repressive, late repressive, early activating, and late activating. A ranked hyper-geometric overlap test was performed to identify the TFs distinctly enriched in each set between the A) Early and Late activating Zic peaks and between the D) Early and late repressive Zic peaks and G) All early and all late peaks. B) E), H) The gene expression of these distinct TFs whose expression was also temporally regulated. C)F)I) Enriched KEGG Pathways for each comparison. 
-
-# Supplemental Figures
-```{r supp figure panel A}
-homer_tfs = early_homer %>%  
-  dplyr::mutate(SYMBOL = str_to_title(SYMBOL)) %>% 
-  dplyr::select(SYMBOL) %>% 
-  drop_na() %>% 
-  distinct() %>% 
-  pull(SYMBOL) 
-
-
-bart_tfs = early_bart %>% 
-  dplyr::select(SYMBOL) %>% 
-  drop_na() %>% 
-  distinct() %>% 
-  pull(SYMBOL)
-
-
-png("../figures/venn_diagram.png")
-venn.plot = venn.diagram(
-  x = list(bart_tfs, homer_tfs),
-  category.names = c("Bart" , "Homer" ),
-  filename = NULL,
-  fill = c( "#FF6308", "black"),
-  label.col = c("black", "blue", "black"),
-  fontface ="bold",
-  cex = 5,
-  cat.cex = 3,
-  cat.fontface = "bold",
-  cat.dist = c(.005, 0.0005), 
-  cat.pos= c(-45, 0),
-  rotation.degree = 45, 
-  disable.logging  = T
-)
-
-grid.draw(venn.plot)
-dev.off()
-
-```
-
-
-```{r supp fig 4, fig.height= 10, fig.width=15}
-
-axis_text_size = 10
-sa = rasterGrob(readPNG("../figures/venn_diagram.png"))
-# sb = plot_bart_homer("early_activating", early_activ_bart, early_activ_homer, axis_text_size)
-# sc = plot_bart_homer("late_activating", late_activ_bart, late_activ_homer, axis_text_size)
-# sd = plot_bart_homer("late_repressive", late_repr_bart, late_repr_homer, axis_text_size)
-# se = plot_bart_homer("early_repressive", early_repr_bart, early_repr_homer, axis_text_size)
-
-
-sh = plot_bart_homer("early_all", early_all_bart, early_all_homer, axis_text_size, "Early")
-si = plot_bart_homer("late_all", late_all_bart, late_all_homer, axis_text_size, "Late")
-
-sf = plot_bart_homer("early", early_bart, early_homer, axis_text_size, "Early Looped")
-sg = plot_bart_homer("late", late_bart, late_homer, axis_text_size, "Late Looped")
-
-r1 = rasterGrob(readPNG("../figures/earlyVlate_all_rrho_bart.png"))
-r2 = rasterGrob(readPNG("../figures/earlyvlate_rrho_bart.png"))
-r3 = rasterGrob(readPNG("../figures/early_allVloop_rrho_bart.png"))
-r4 = rasterGrob(readPNG("../figures/late_allVloop_rrho_bart.png"))
-r5 = rasterGrob(readPNG("../figures/earlyVlate_all_rrho_homer.png"))
-r6 = rasterGrob(readPNG("../figures/earlyvlate_rrho_homer.png"))
-r7 = rasterGrob(readPNG("../figures/early_allVloop_rrho_homer.png"))
-r8 = rasterGrob(readPNG("../figures/late_allVloop_rrho_homer.png"))
-
-
-
-supp = plot_grid(sa,
-           plot_grid(sh,si,sf,sg,  nrow = 1, labels = c("B", "C", "D", "E")),
-           plot_grid(r1, r2,r3,r4,r5,r6,r7,r8, nrow = 2, labels = LETTERS[6:13]),
-           labels = c("A", ""),
-           nrow = 3, 
-           rel_heights  = c(.1, .5, .4),
-           axis = "l"
-           )
- 
-
-png("../figures/supp_figure2.png", height = 15, width = 15, res = 300, units = "in" )
-supp
-dev.off()
-
-supp
-
-```
-
-Supplemental Figure . Mouse in-vivo ChIP overlap enrichement (BART) and motif enrichement (HOMER) of Zic ChIP peaks. A) Overlap in TF ChIP profiles in each algorithm. TF enrichement was calculated by timepoint and gene regulation in the following categories B) Early Activaitng, C) Late Activating D) Early Repressive E) Late Repressive F) Early, E) Late.  *Denotes predicted TFs that are common between the ChIP overlap enrichement and motf enrichment. Color of TFs on y-axis indicate whether that TF was in both datasets (blue) ot not(black).
-
-
-
-```{r distinct supp, fig.width=10, fig.height=7}
-
-# Act v Rep
-sa1 = plot_distinct(early_actVrep, "early_activating", "early_repressive", "Distinct \nActivating", "Distinct \nRepressive" )
-sa2 = plot_distinct(late_actvrep, "late_activating", "late_repressive", "Distinct \nActivating", "Distinct \nRepressive" )
-sa3 = plot_distinct(actvrep, "activating", "repressive", "Distinct \nActivating", "Distinct \nRepressive" )
-sah1 = plot_distinct(early_actVrep_hom, "early_activating", "early_repressive", "Distinct \nActivating", "Distinct \nRepressive" )
-sah2 = plot_distinct(late_actvrep_hom, "late_activating", "late_repressive", "Distinct \nActivating", "Distinct \nRepressive" )
-sah3 = plot_distinct(actvrep_hom, "activating", "repressive", "Distinct \nActivating", "Distinct \nRepressive" )
-
-# all v looped zic peaks
-sa4 = plot_distinct(early_allVloop, "early_all", "early", "Distinct \nAll Zic P7", "Distinct \nLooped Zic P7")
-sa5 = plot_distinct(late_allVloop, "late_all", "late", "Distinct \nAll Zic P60", "Distinct \nLooped Zic P60")
-sah4 = plot_distinct(early_allVloop_hom, "early_all", "early", "Distinct \nAll Zic P7", "Distinct \nLooped Zic P7")
-sah5 = plot_distinct(late_allVloop_hom, "late_all", "late", "Distinct \nAll Zic P60", "Distinct \nLooped Zic P60")
-
-
-
-supp_dis = plot_grid(plot_grid(sa1, sa2, sa3, nrow = 1, labels = c("A", "B", "C")), 
-          plot_grid(sah1, sah2, sah3, nrow = 1,  labels = c("D", "E", "F")),
-          nrow = 2, 
-          labels = c("\t\t\t\t\t\t\t\t\tBart", "\t\t\t\t\t\t\t\t\tHomer"),
-          vjust = 1
-)
-
-
-supp_allvlooped = plot_grid(
-  plot_grid(sa4, sah4, labels = c("Bart", "Homer"), hjust = -2),
-  plot_grid(sa5, sah5, labels = c("Bart", "Homer"), hjust = -2), nrow =2)
-
-
-
-
-supp_dis
-supp_allvlooped
-
-
-
-png("../figures/supp_figure_rrho.png", height = 8, width = 12, res = 300, units = "in" )
-supp_dis
-dev.off()
-
-png("../figures/supp_figure_rrho_allvlooped.png", height = 8, width = 8, res = 300, units = "in" )
-supp_allvlooped
-dev.off()
-``` 
-
-
-Supp Figure: Litte to no Distinct TFs based on mapped genes 
-
 # Examples:
 
-```{r chip overlap, fig.height=4, fig.width=10}
+```{r chip overlap, fig.height=6, fig.width=10}
 
 
 atoh_p = plot_overlap(atoh_peaks, atoh1_zic_overlap, "P5 - Atoh1")
@@ -662,8 +533,6 @@ smc1_p = plot_overlap(smc1_peaks, smc1_zic_overlap, "P22 - Smc1")
 h2a_p = plot_overlap(h2a_peaks, h2a_zic_overlap, "P22 - H2A.z")
 h3_p = plot_overlap(h3_peaks, h3_zic_overlap, "P22 - H3")
 
-# plot_grid(atoh_p$plot1, chd7_p$plot1, chd4_p$plot1, ctcf4_p$plot1, ctcf22_p$plot1, ctcf56_p$plot1, rad21_4_p$plot1, rad21_56_p$plot1, smc1_p$plot1, h2a_p$plot1, h3_p$plot1, nrow =2 )
-# plot_grid(atoh_p$plot2, chd7_p$plot2, chd4_p$plot2, ctcf4_p$plot2, ctcf22_p$plot2, ctcf56_p$plot2, rad21_4_p$plot2, rad21_56_p$plot2, smc1_p$plot2, h2a_p$plot2, h3_p$plot2, nrow =2)
 
 
 chip_o = plot_grid(atoh_p$plot1, atoh_p$plot2, 
@@ -683,27 +552,8 @@ chip_o
 # dev.off()
 ```
 
+```{r tracks, fig.width=12, fig.height=12}
 
-
-
-```{r tracks, fig.width=12, fig.height=3.5}
- # set scheme
-scheme <- getScheme(name=getOption("Gviz.scheme"))
-scheme$GdObject$col.axis = "white"
-scheme$GdObject$background.title = "black"
-scheme$GdObject$fontcolor = "black"
-scheme$GdObject$rotation.title = 90
-scheme$GeneRegionTrack$transcriptAnnotation = "symbol"
-scheme$GeneRegionTrack$col = "black"
-scheme$GeneRegionTrack$fill = "black"
-scheme$GeneRegionTrack$collapseTranscripts = FALSE
-scheme$DataTrack$fill.histogram = "darkblue"
-scheme$DataTrack$col.histogram = "darkblue"
-scheme$GdObject$col.border.title = "transparent"
-
-addScheme(scheme, "myScheme")
-options(Gviz.scheme="myScheme")
-options(ucscChromosomeNames=FALSE)
 # formatting data
 genomeAxis <- GenomeAxisTrack(name="MyAxis") 
 customFromTxDb <- GeneRegionTrack(TxDb.Mmusculus.UCSC.mm10.knownGene)
@@ -768,25 +618,209 @@ tracks = list(p7_zic_bw1,
 
 
 png("../figures/atoh1_overlap_track.png", units = "in", height = 3.5, width = 12, res = 300)
-plot_track("Ccnd2", tracks, 25000, 50000, ylim = c(0,2)) ## this is the one
+plot_track("Ccnd2", tracks, highlight = c(127112639, 127147731, 127179170), w = 5000, 25000, 50000, ylim = c(0,2)) ## this is the one
 dev.off()
 
 png("../figures/atoh1_overlap_track_Chd7.png", units = "in", height = 3.5, width = 12, res = 300)
-plot_track("Chd7", tracks, 50000, 50000, ylim = c(0,2)) ## this is the one
+plot_track("Chd7", tracks, 50000, 50000,highlight = c(8682365, 8748592, 8796800), w =5000, ylim = c(0,2)) ## this is the one
 dev.off()
 
 png("../figures/atoh1_overlap_track_Zmiz1.png", units = "in", height = 3.5, width = 12, res = 300)
-plot_track("Zmiz1", tracks, 50000, 50000, ylim = c(0,2)) ## this is the one
+plot_track("Zmiz1", tracks, 50000, 50000, highlight = c(25419216, 25477487, 25492739, 25509984, 25518084, 25546236), w =5000, ylim = c(0,2)) ## this is the one
 dev.off()
 
 png("../figures/atoh1_overlap_track_Dpf3.png", units = "in", height = 3.5, width = 12, res = 300)
-plot_track("Dpf3", tracks, 50000, 50000, ylim = c(0,2)) ## this is the one
+plot_track("Dpf3", tracks, 25000, 15000, highlight = c(83208853, 83246662, 83275189, 83300109, 83339703), w =5000, ylim = c(0,2)) ## this is the one
 dev.off()
 
 
-# e2 = rasterGrob(readPNG("../figures/fig1_track2.png"))
-# e1 = rasterGrob(readPNG("../figures/fig1_track1.png"))
+e2 = rasterGrob(readPNG("../figures/atoh1_overlap_track_Dpf3.png"))
+e1 = rasterGrob(readPNG("../figures/atoh1_overlap_track_Chd7.png"))
+e3 = rasterGrob(readPNG("../figures/atoh1_overlap_track_Zmiz1.png"))
+e4 = rasterGrob(readPNG("../figures/atoh1_overlap_track.png"))
 
+
+plot_grid(e1, e2, e3, e4, ncol=1)
+```
+
+# Distinctly Enriched TFs
+
+```{r figure 3, fig.height=12, fig.width=12}
+# all peaks
+all_fig =  plot_grid(plot_grid( plot_grid(dh1, d1, ncol = 1, labels = c("A", "B"), hjust = 0), d_tf_all , ncol = 2, rel_widths = c(.4, .6) ),
+                    plot_grid(plot_grid(atoh_p$plot1, atoh_p$plot2, nrow =2, labels = c("E", "F")), plot_grid(e1, e2, ncol =1, labels = c("G", "H")), rel_widths = c(.3, .7)),
+                    ncol = 1,
+                    rel_heights = c(.65, .35))
+
+
+
+png("../figures/figure2.png", height = 6, width = 12, res = 300, units = "in" )
+all_fig
+dev.off()
+
+all_fig
 
 
 ```
+
+
+# Supplemental Figures
+```{r supp figure panel A}
+homer_tfs = early_homer %>%  
+  dplyr::mutate(SYMBOL = str_to_title(SYMBOL)) %>% 
+  dplyr::select(SYMBOL) %>% 
+  drop_na() %>% 
+  distinct() %>% 
+  pull(SYMBOL) 
+
+
+bart_tfs = early_bart %>% 
+  dplyr::select(SYMBOL) %>% 
+  drop_na() %>% 
+  distinct() %>% 
+  pull(SYMBOL)
+
+
+png("../figures/venn_diagram.png")
+venn.plot = venn.diagram(
+  x = list(bart_tfs, homer_tfs),
+  category.names = c("Bart" , "Homer" ),
+  filename = NULL,
+  fill = c( "#FF6308", "black"),
+  label.col = c("black", "blue", "black"),
+  fontface ="bold",
+  cex = 5,
+  cat.cex = 3,
+  cat.fontface = "bold",
+  cat.dist = c(.005, 0.0005), 
+  cat.pos= c(-45, 0),
+  rotation.degree = 45, 
+  disable.logging  = T
+)
+
+grid.draw(venn.plot)
+dev.off()
+
+```
+
+
+```{r supp fig 2, fig.height= 15, fig.width=15}
+
+axis_text_size = 10
+sa = rasterGrob(readPNG("../figures/venn_diagram.png"))
+
+sh = plot_bart_homer("early_all", early_all_bart, early_all_homer, axis_text_size, "Early")
+si = plot_bart_homer("late_all", late_all_bart, late_all_homer, axis_text_size, "Late")
+
+
+r1 = rasterGrob(readPNG("../figures/earlyVlate_all_rrho_bart.png"))
+r5 = rasterGrob(readPNG("../figures/earlyVlate_all_rrho_homer.png"))
+
+
+supp = plot_grid(sa,
+            plot_grid(plot_grid(sh,si,  nrow = 1, labels = c("B", "C")), plot_grid(r1, r5, nrow = 2, labels = c("D", "E")), nrow =1, rel_widths = c(.7, .3)),
+           labels = c("A", ""),
+           nrow = 2, 
+           rel_heights  = c(.15, .85),
+           axis = "l"
+           )
+ 
+
+png("../figures/supp_figure2.png", height = 15, width = 15, res = 300, units = "in" )
+supp
+dev.off()
+
+supp
+
+```
+
+Supplemental Figure . Mouse in-vivo ChIP overlap enrichement (BART) and motif enrichement (HOMER) of Zic ChIP peaks. A) Overlap in TF ChIP profiles in each algorithm. TF enrichement was calculated by timepoint and gene regulation in the following categories B) Early Activaitng, C) Late Activating D) Early Repressive E) Late Repressive F) Early, E) Late.  *Denotes predicted TFs that are common between the ChIP overlap enrichement and motf enrichment. Color of TFs on y-axis indicate whether that TF was in both datasets (blue) ot not(black).
+
+
+
+
+
+```{r looped results, fig.height= 15, fig.width=12}
+
+# looped peaks
+r2 = rasterGrob(readPNG("../figures/earlyvlate_rrho_bart.png"))
+r6 = rasterGrob(readPNG("../figures/earlyvlate_rrho_homer.png"))
+
+sf = plot_bart_homer("early", early_bart, early_homer, axis_text_size, "Early Looped")
+sg = plot_bart_homer("late", late_bart, late_homer, axis_text_size, "Late Looped")
+
+looped_fig = plot_grid(
+            plot_grid(sf, sg, plot_grid(r2, r6, nrow = 2, labels = c("C", "D")),  labels = c("A", "B"), nrow = 1),
+            plot_grid( plot_grid(ch1, c1, ncol = 1, labels = c("C", "D"), hjust = 0), d_tf, rel_widths = c(.4, .6)),
+            nrow = 2, 
+            rel_heights = c(.6, .4))
+
+png("../figures/figure2_loop.png", height = 15, width = 12, res = 300, units = "in" )
+looped_fig
+dev.off()
+
+
+looped_fig
+```
+
+```{r  all v looped, fig.height= 8, fig.width=8 }
+# all v looped zic peaks
+sa4 = plot_distinct(early_allVloop, "early_all", "early", "Distinct \nAll Zic P7", "Distinct \nLooped Zic P7", table_tilte = "Bart\n")
+sa5 = plot_distinct(late_allVloop, "late_all", "late", "Distinct \nAll Zic P60", "Distinct \nLooped Zic P60", table_tilte = "Bart\n")
+sah4 = plot_distinct(early_allVloop_hom, "early_all", "early", "Distinct \nAll Zic P7", "Distinct \nLooped Zic P7", table_tilte = "Homer\n")
+sah5 = plot_distinct(late_allVloop_hom, "late_all", "late", "Distinct \nAll Zic P60", "Distinct \nLooped Zic P60", table_tilte = "Homer\n")
+
+r3 = rasterGrob(readPNG("../figures/early_allVloop_rrho_bart.png"))
+r4 = rasterGrob(readPNG("../figures/late_allVloop_rrho_bart.png"))
+r7 = rasterGrob(readPNG("../figures/early_allVloop_rrho_homer.png"))
+r8 = rasterGrob(readPNG("../figures/late_allVloop_rrho_homer.png"))
+
+supp_allvlooped = plot_grid(
+  plot_grid(r3, r4, r7, r8, nrow = 1, labels = LETTERS[1:4]),
+  plot_grid(sa4, sah4, labels = c("E", "F"), hjust = -1),
+  plot_grid(sa5, sah5, labels = c("G", "H"), hjust = -1), 
+  nrow =3)
+
+
+png("../figures/supp_figure_rrho_allvlooped.png", height = 8, width = 8, res = 300, units = "in" )
+supp_allvlooped
+dev.off()
+
+supp_allvlooped
+```
+
+```{r distinct supp, fig.width=10, fig.height=7}
+
+# Act v Rep
+sa1 = plot_distinct(early_actVrep, "early_activating", "early_repressive", "Distinct \nActivating", "Distinct \nRepressive", table_tilte = "Bart\n" )
+sa2 = plot_distinct(late_actvrep, "late_activating", "late_repressive", "Distinct \nActivating", "Distinct \nRepressive", table_tilte = "Bart\n" )
+sa3 = plot_distinct(actvrep, "activating", "repressive", "Distinct \nActivating", "Distinct \nRepressive", table_tilte = "Bart\n" )
+sah1 = plot_distinct(early_actVrep_hom, "early_activating", "early_repressive", "Distinct \nActivating", "Distinct \nRepressive" , table_tilte = "Homer\n")
+sah2 = plot_distinct(late_actvrep_hom, "late_activating", "late_repressive", "Distinct \nActivating", "Distinct \nRepressive" , table_tilte = "Homer\n")
+sah3 = plot_distinct(actvrep_hom, "activating", "repressive", "Distinct \nActivating", "Distinct \nRepressive" , table_tilte = "Homer\n")
+
+
+
+supp_dis = plot_grid(plot_grid(sa1, sa2, sa3, nrow = 1, labels = c("A", "B", "C")), 
+          plot_grid(sah1, sah2, sah3, nrow = 1,  labels = c("D", "E", "F")),
+          nrow = 2, 
+          vjust = 1
+)
+
+
+
+
+
+supp_dis
+
+
+
+png("../figures/supp_figure_act_rep.png", height = 8, width = 12, res = 300, units = "in" )
+supp_dis
+dev.off()
+
+``` 
+
+
+
+
