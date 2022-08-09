@@ -40,17 +40,6 @@ options(ucscChromosomeNames=FALSE)
 
 ```
 ```{r}
-#' Title
-#'
-#' @param gene - gene to plot
-#' @param tracks - GViz tracks to plot
-#' @param expand_l - Number of base-pairs to expand to the left
-#' @param expand_r - Number of base-pairs to expand to the right
-#' @param ylim - y-axis lim
-#'
-#' @return 
-#' @export
-
 
 plot_track <- function(tracks, from, to, chr,highlight, w= 1000,s, expand_l= 0, expand_r = 0, ylim = c(0,3)){
   
@@ -425,8 +414,8 @@ zic_motif_hist = zic_peak_data %>%
   dplyr::filter(!(motif_id == "no motif")) %>% 
   ggplot(aes(x = n_zics_in_peak)) + 
   geom_histogram(fill = "white", color = "black", binwidth = 1, boundary=-0.5) +
-  scale_x_continuous(breaks=1:5) +
-  xlim(1,5)+
+  scale_x_continuous(breaks=0:5) +
+  xlim(0,5)+
   ylim(0, 5000) +
   facet_grid(motif_id ~ zic_sig, labeller = labeller(zic_sig = c("DOWN" = "Early", "UP" = "Late", "N.S." = "Static"), motif_id = c("ZIC1_MOUSE.H11MO.0.B" = "Zic1", "ZIC2_MOUSE.H11MO.0.C" = "Zic2" )))+
   theme_classic()+
@@ -572,27 +561,37 @@ zic_expr
 
 ```{r}
 
-P60vP7_zic = zic_peak_data %>% 
+P60vP7_zic_dat = zic_peak_data %>% 
   dplyr::select(starts_with("zic")) %>% 
   distinct() %>% 
   dplyr::rename_with( ~ gsub( "zic_","", .x)) 
 
-sa1 = P60vP7_zic %>% 
+sa1 = P60vP7_zic_dat %>% 
   dplyr::mutate(size = End - Start) %>% 
   ggplot(aes(x = size) )+ 
   geom_histogram(fill = "white", color = "black", bins = 50) +
   theme_classic() +
   labs(x = "Size of Zic Peaks", y = "Num. Peaks")
 
+P60vP7_zic %>% 
+  dplyr::filter(zic_sig != "filtered") %>% 
+  dplyr::mutate(size = End - Start) %>% 
+  dplyr::summarise(  n = n(),
+                     mean = mean(size),
+                     sd = sd(size),
+                     median = median(size),
+                     min = min(size),
+                     max = max(size))
 
-sa2 = P60vP7_zic %>% 
+
+sa2 = P60vP7_zic_dat %>% 
   ggplot(aes(x = p7_mean)) +
   geom_histogram(fill = "white", color = "black", bins = 1000) +
   facet_zoom(xlim = c(0, 1000)) +
   theme_classic() +
   labs(x = "Mean signal of Peaks at P7")
 
-sa3 =P60vP7_zic %>% 
+sa3 =P60vP7_zic_dat %>% 
   ggplot(aes(x = p60_mean)) +
   geom_histogram(fill = "white", color = "black", bins = 1000) +
   facet_zoom(xlim = c(0, 1000)) +
@@ -645,32 +644,40 @@ dev.off()
 ```
 
 
-```{r, fig.height=8, fig.width=16}
-zic_motif_hist_logo = plot_grid(zic_motif_hist,
-          plot_grid(zic1_logo, zic2_logo, ncol = 1, labels = c("G", "H")),
+```{r, fig.height=10, fig.width=12}
+zic_motif_hist_logo = plot_grid(plot_grid(zic1_logo, zic2_logo, ncol = 1, labels = c("F", "G")),
+          zic_motif_hist,
           nrow = 1,
-          rel_widths = c(.6, .4),
-          labels = c("F"),
+          rel_widths = c(.4, .6),
+          labels = c("", "H"),
           hjust = -2)
 
-fig1 = plot_grid(
+fig1_horiz = plot_grid(
   plot_grid(plot_grid(zic_ma, sa1, ncol = 1, labels = c("A", "B")), DistReads, lossGain, lg_examples, rel_widths = c(.25, .3,.1 ,.35), nrow = 1, labels = c("","C", "D", "E")),
   plot_grid(zic_motif_hist_logo, zic_motif,zic_overlap, zic_loci2 ,rel_widths = c(.35,.175, .3, .175), nrow = 1, labels = c( "", "I", "J", "K")),
           ncol =1
 )
  
+
+fig1_vert = plot_grid(
+  plot_grid(zic_ma, DistReads, lossGain, nrow = 1, rel_widths = c(.4, .4, .2), labels = c("A", "B", "C")),
+  plot_grid(lg_examples, sa1, zic_motif_hist_logo, nrow = 1, labels = c("D", "E"), vjust = 1, rel_widths = c(.4, .2, .4)),
+  plot_grid(zic_motif,zic_overlap, zic_loci2 , nrow = 1, rel_widths = c(.25, .5, .25), labels = c("I", "J", "K")),
+          ncol =1
+)
  
-png("../figures/figure1.png", height = 8, width = 16, units = "in", res = 300)
-fig1
+ 
+png("../figures/figure1.png", height = 10, width = 12, units = "in", res = 300)
+fig1_vert
 dev.off()
 
-fig1
+fig1_vert
 ```
-```{r, fig.height=9, fig.width=12}
+```{r, fig.height=10, fig.width=16}
 
 plot_grid(
-  plot_grid(plot_grid(zic_ma, sa1, ncol = 1, labels = c("A", "B"), rel_heights = c(.6, .4), vjust = .5), DistReads, lossGain, nrow = 1, rel_widths = c(.4, .4, .2), labels = c("", "C", "D")),
-  plot_grid(lg_examples, zic_motif_hist_logo, nrow = 1, labels = c("E"), vjust = 1),
+  plot_grid(zic_ma, DistReads, lossGain, nrow = 1, rel_widths = c(.4, .4, .2), labels = c("A", "B", "C")),
+  plot_grid(lg_examples, sa1, zic_motif_hist_logo, nrow = 1, labels = c("D", "E"), vjust = 1, rel_widths = c(.4, .2, .4)),
   plot_grid(zic_motif,zic_overlap, zic_loci2 , nrow = 1, rel_widths = c(.25, .5, .25), labels = c("I", "J", "K")),
           ncol =1
 )
