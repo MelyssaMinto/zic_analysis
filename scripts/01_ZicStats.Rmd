@@ -666,12 +666,12 @@ dev.off()
 
 fig1
 ```
-```{r, fig.height=9, fig.width=9}
+```{r, fig.height=9, fig.width=12}
 
 plot_grid(
-  plot_grid(plot_grid(zic_ma, sa1, ncol = 1, labels = c("A", "B")), DistReads, lossGain, nrow = 1, rel_widths = c(.4, .4, .2), labels = c("", "C", "D")),
+  plot_grid(plot_grid(zic_ma, sa1, ncol = 1, labels = c("A", "B"), rel_heights = c(.6, .4), vjust = .5), DistReads, lossGain, nrow = 1, rel_widths = c(.4, .4, .2), labels = c("", "C", "D")),
   plot_grid(lg_examples, zic_motif_hist_logo, nrow = 1, labels = c("E"), vjust = 1),
-  plot_grid(zic_motif,zic_overlap, zic_loci2 , nrow = 1, rel_widths = c(.3, .4, .3), labels = c("I", "J", "K")),
+  plot_grid(zic_motif,zic_overlap, zic_loci2 , nrow = 1, rel_widths = c(.25, .5, .25), labels = c("I", "J", "K")),
           ncol =1
 )
  

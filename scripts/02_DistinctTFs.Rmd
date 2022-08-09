@@ -654,7 +654,7 @@ all_fig =  plot_grid(plot_grid( plot_grid(dh1, d1, ncol = 1, labels = c("A", "B"
 
 
 
-png("../figures/figure2.png", height = 6, width = 12, res = 300, units = "in" )
+png("../figures/figure2.png", height = 12, width = 12, res = 300, units = "in" )
 all_fig
 dev.off()
 
