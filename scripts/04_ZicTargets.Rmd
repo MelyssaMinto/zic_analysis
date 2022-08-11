@@ -21,36 +21,91 @@ Idea is to get the direct targets assignments using only in vitro data.
 # Read datasets
 
 ```{r echo = FALSE,warning = FALSE,message = FALSE, error = FALSE}
-# # Npeaks data
-# knockdown_genes_zic1_npeaks <- read_tsv("../results/invitro/figure_invitro/knockdown_genes_zic1_npeaks.tsv")
-# knockdown_genes_zic2_npeaks <- read_tsv("../results/invitro/figure_invitro/knockdown_genes_zic2_npeaks.tsv")
-# 
-# knockdown_genes_zic1_npeaks_in_vitro <- read_tsv("../results/invitro/figure_invitro/knockdown_genes_zic1_npeaks_in_vitro.tsv")
-# knockdown_genes_zic2_npeaks_in_vitro <- read_tsv("../results/invitro/figure_invitro/knockdown_genes_zic2_npeaks_in_vitro")
-# 
-# knockdown_genes_zic1_npeaks_dir <- read_tsv("../results/invitro/figure_invitro/knockdown_genes_zic1_npeaks_dir.tsv")
-# knockdown_genes_zic2_npeaks_dir <- read_tsv("../results/invitro/figure_invitro/knockdown_genes_zic2_npeaks_dir.tsv")
-# 
-# knockdown_genes_zic1_npeaks_in_vitro_dir <- read_tsv("../results/invitro/figure_invitro/knockdown_genes_zic1_npeaks_in_vitro_dir.tsv")
-# knockdown_genes_zic2_npeaks_in_vitro_dir <- read_tsv("../results/invitro/figure_invitro/knockdown_genes_zic2_npeaks_in_vitro_dir.tsv")
-# 
-# knockdown_genes_zic1_npeaks_dir_zic_dependent <- read_tsv("../results/invitro/figure_invitro/knockdown_genes_zic1_npeaks_in_vitro_dir.tsv")
-# knockdown_genes_zic2_npeaks_dir_zic_dependent <- read_tsv("../results/invitro/figure_invitro/knockdown_genes_zic2_npeaks_in_vitro_dir.tsv")
-# 
-# 
-# # GO data
-# zic1_comp_go <- readRDS("../results/invitro/figure_invitro/zic1_comp_go.Rds")
-# zic2_comp_go <- readRDS("../results/invitro/figure_invitro/zic2_comp_go.Rds")
-
-
 invitro_data = read_tsv("../results/FinalTables/invitro_table.txt")
 go_results =  load("../results/invitro/figure_invitro/go_cat.RData")
+zic_cuntnrun = read_rds("../results/invitro/diffbind_cutnrun_zic/res_7v3_ashr.Rds")
+
+zic_cutnrun_anno_up = read_rds("../results/invitro/diffbind_cutnrun_zic/peaks_7v3_up_annotation.Rds")
+zic_cutnrun_anno_down = read_rds("../results/invitro/diffbind_cutnrun_zic/peaks_7v3_down_annotation.Rds")
+zic_cutnrun_anno_static = read_rds("../results/invitro/diffbind_cutnrun_zic/peaks_7v3_static_annotation.Rds")
 
 ```
 
 
 
 # Plots
+Zic Cut n run stats
+```{r}
+
+plt_dat = zic_cuntnrun %>% 
+  as_tibble() %>% 
+  dplyr::mutate(sig = case_when(log2FoldChange > 0 & padj <= 0.05 ~ "UP",
+                         log2FoldChange < 0 & padj <= 0.05 ~ "DOWN",
+                         is.na(padj) ~ "filtered",
+                         TRUE ~ "N.S.")) 
+
+tab = plt_dat %>% 
+  group_by(sig) %>% 
+  dplyr::count() %>% 
+  ungroup()
+  
+num_up = tab$n[tab$sig == "UP"]
+num_down = tab$n[tab$sig == "DOWN"]
+
+tab
+
+total = tab %>% 
+  dplyr::filter(sig != "filtered") %>% 
+  summarize(total = sum(n))
+  
+ma = plt_dat %>% 
+  dplyr::filter(sig != "filtered") %>% 
+  ggplot(aes(y = log2FoldChange, x = log10(baseMean), color = sig)) +
+  geom_point() +
+  scale_color_manual(limits = c("DOWN", "N.S.", "UP"), values = c("blue", "black", "red"), labels = c("Early", "Static", "Late")) +
+  labs(x = "log10(Avg Zic CutnRun Signal)", y = "P60 / P7 Log2FC") +
+  geom_text(x = 2.25, y = 1.5, label = paste0("Increased Zic Binding\n n = ",num_up), color = "red")+
+  geom_text(x = 2.25, y = -1.85, label = paste0("Decreased Zic Binding\n n = ",num_down ), color = "blue")+
+  theme_classic() +
+  theme(legend.position = "none")
+
+ma
+```
+```{r}
+
+size = bind_rows(list(Early = zic_cutnrun_anno_down@anno %>% as_tibble(),
+               Late = zic_cutnrun_anno_up@anno %>% as_tibble(),
+               Static = zic_cutnrun_anno_static@anno %>% as_tibble()),
+          .id = "id") %>% 
+  dplyr::mutate(size = end - start) %>% 
+   ggplot(aes(x = size) )+ 
+  geom_histogram(fill = "white", color = "black", bins = 50) +
+  theme_classic() +
+  xlim(0, 4000)+
+  labs(x = "Size of Zic Peaks", y = "Num. Peaks")
+
+size
+```
+
+```{r}
+
+loci = bind_rows(list(Late= zic_cutnrun_anno_up@annoStat, Early = zic_cutnrun_anno_down@annoStat, Static = zic_cutnrun_anno_static@annoStat),.id = "id") %>% 
+  dplyr::mutate(Feature2 = case_when( grepl("Promoter", Feature) ~ "Promoter Proximal",
+                                      Feature %in% c("Downstream (<=300)", "Distal Intergenic") ~ "Distal",
+                                      TRUE ~ "Gene Body"),
+                Feature2 = factor(Feature2, levels = c("Promoter Proximal", "Gene Body", "Distal"))) %>% 
+  ggplot(aes(x = id, y = Frequency, fill = Feature2))+
+  geom_col() +
+  labs(y = "% Peaks", x = "Differential Zic Region", fill = "Region") +
+  theme_classic() +
+  scale_x_discrete(limits = c("Early", "Static", "Late")) +
+  scale_fill_manual(values = c("#bad2e1","grey", "#b15928"), labels = c("Promoter\nProximal", "Gene\nBody", "Distal"))+
+  theme( panel.grid = element_blank(), legend.position = "right", legend.key.size = unit(.2, 'cm')) +
+  scale_y_continuous(expand = c(0,0), labels = scales::percent_format(scale = 1))
+loci
+
+```
+
 
 Zic1 log2FC vs number of in vitro peaks
 ```{r, fig.height=8, fig.width=12}
@@ -106,8 +161,8 @@ c = invitro_data %>%
   theme_bw() +
   scale_color_manual(values = c("#143589", "#E1BE6A", "#40B0A6"), limits =  c("Zic1 KD", "Zic2 KD", "Zic1 & Zic2 KD"))+
   theme(legend.position = "bottom",
-        strip.background = element_rect(fill = "black"),
-        strip.text = element_text(color = "white"))+
+        strip.background = element_rect(fill = "white"),
+        strip.text = element_text(color = "black"))+
   labs(x = "GE log2(DIV7 / DIV3)", y = "GE log2(Zic1/2 KD / Ctrl)", color = "KD", size = "no. mapped peaks" )
 
 c
@@ -126,54 +181,6 @@ invitro_data %>%
 
 ```{r, fig.width= 6, fig.height=8}
 
-
-# d1 = dotplot(g_bp) + 
-#   theme(axis.text.y = element_text(size = 11), axis.text.x = element_text(size =11, angle = 45, hjust  = 1)) + 
-#   scale_y_discrete(labels = function(x) str_wrap(x, width = 25)) +
-#   scale_x_discrete(labels = function(x) str_wrap(x, width = 15)) 
-# 
-# cnetplot(g_mf)
-# cnetplot(g_bp)
-# cnetplot(g_cc)
-# 
-# cnetplot(g_cat_mf)
-# cnetplot(g_cat_bp)
-# cnetplot(g_cat_cc)
-# 
-# cnetplot(zdd_t_mf)
-# cnetplot(zdd_t_bp)
-# cnetplot(zdd_t_cc)
-# 
-# 
-# 
-# dotplot(g_cat_bp) + theme(axis.text.y = element_text(size = 11), axis.text.x = element_text(size =11, angle = 45, hjust  = 1)) + 
-#   scale_y_discrete(labels = function(x) str_wrap(x, width = 25)) +
-#   scale_x_discrete(labels = function(x) str_wrap(x, width = 15)) 
-# dotplot(g_bp) + 
-#   theme(axis.text.y = element_text(size = 11), axis.text.x = element_text(size =11, angle = 45, hjust  = 1)) + 
-#   scale_y_discrete(labels = function(x) str_wrap(x, width = 25)) +
-#   scale_x_discrete(labels = function(x) str_wrap(x, width = 15)) 
-# dotplot(g_mf) + 
-#   theme(axis.text.y = element_text(size = 11), axis.text.x = element_text(size =11, angle = 45, hjust  = 1)) + 
-#   scale_y_discrete(labels = function(x) str_wrap(x, width = 25)) +
-#   scale_x_discrete(labels = function(x) str_wrap(x, width = 15)) 
-# dotplot(g_cc) + 
-#   theme(axis.text.y = element_text(size = 11), axis.text.x = element_text(size =11, angle = 45, hjust  = 1)) + 
-#   scale_y_discrete(labels = function(x) str_wrap(x, width = 25)) +
-#   scale_x_discrete(labels = function(x) str_wrap(x, width = 15)) 
-# dotplot(g_cat_mf) + theme(axis.text.y = element_text(size = 11), axis.text.x = element_text(size =11, angle = 45, hjust  = 1)) + 
-#   scale_y_discrete(labels = function(x) str_wrap(x, width = 25)) +
-#   scale_x_discrete(labels = function(x) str_wrap(x, width = 15)) 
-# dotplot(g_cat_cc) + theme(axis.text.y = element_text(size = 11), axis.text.x = element_text(size =11, angle = 45, hjust  = 1)) + 
-#   scale_y_discrete(labels = function(x) str_wrap(x, width = 25)) +
-#   scale_x_discrete(labels = function(x) str_wrap(x, width = 15)) 
-# dotplot(zdd_t_bp) + theme(axis.text.y = element_text(size = 11), axis.text.x = element_text(size =11, angle = 45, hjust  = 1)) + 
-#   scale_y_discrete(labels = function(x) str_wrap(x, width = 25)) +
-#   scale_x_discrete(labels = function(x) str_wrap(x, width = 15)) 
-# 
-# dotplot(zdd_t_cc) + theme(axis.text.y = element_text(size = 11), axis.text.x = element_text(size =11, angle = 45, hjust  = 1)) + 
-#   scale_y_discrete(labels = function(x) str_wrap(x, width = 25)) +
-#   scale_x_discrete(labels = function(x) str_wrap(x, width = 15)) 
 
 d1 = dotplot(zdd_t_bp) + 
   theme(axis.text.y = element_text(size = 11), axis.text.x = element_text(size =11)) + 
@@ -201,9 +208,6 @@ plot_grid(d1, d2, ncol = 1)
 Adding in vitro n peaks
 
 ```{r, fig.height=12, fig.width=8}
-
-
-  
 plt_dat = invitro_data %>% 
   # select data
   dplyr::select(ends_with(c("hange", "adj")),  zic_peak, gene_names, bothKD, cat , num_peaks, dev_sig, zic_sig) %>% 
@@ -228,7 +232,7 @@ e_leg = get_legend(plt_dat %>%
   ggplot(aes(y = gene_labels, fill =zic_sig))+
   geom_bar(stat = "count") +
   facet_grid(dev_sig~cat, scales = "free", space = "free")+
-  scale_fill_manual(values = c("Up"="#D81B60","Down"="#1E88E5","Static" ="gray")) +
+  scale_fill_manual(values = c("Up"="red","Down"="blue","Static" ="black")) +
   theme_classic() + 
   labs(y = "Gene Symbol", x = "# Zic Peaks Mapped to Gene", fill = "DIV7/DIV3") +
   theme(axis.text.y = element_markdown(),
@@ -240,9 +244,7 @@ e_leg = get_legend(plt_dat %>%
          #legend.box.background = element_rect(color="black", size=1),
          legend.text = element_text(size = 11),
          legend.key.size = unit(.5, "lines"),
-         legend.title = element_text(size = 11, face = "bold"),
-        strip.background = element_rect(fill = "black"),
-        strip.text = element_text(color = "white")))
+         legend.title = element_text(size = 11, face = "bold")))
 
 e1 = plt_dat %>% 
   dplyr::filter(cat == "Developmental") %>% 
@@ -250,14 +252,12 @@ e1 = plt_dat %>%
   ggplot(aes(y = gene_labels, fill =zic_sig))+
   geom_bar(stat = "count") +
   facet_grid(dev_sig~cat, scales = "free", space = "free")+
-  scale_fill_manual(values = c("Up"="#D81B60","Down"="#1E88E5","Static" ="gray")) +
+  scale_fill_manual(values = c("Up"="red","Down"="blue","Static" ="black")) +
   theme_classic() + 
   labs(y = "Gene Symbol", x = "# Zic Peaks Mapped to Gene", fill = "DIV7/DIV3") +
   theme(axis.text.y = element_markdown(),
         axis.text.x = element_markdown(size = 8), 
-        legend.position = "none",
-        strip.background = element_rect(fill = "black"),
-        strip.text = element_text(color = "white"))
+        legend.position = "none")
 
 e2 = plt_dat %>% 
   dplyr::filter(cat == "Zic Dependent Developmental") %>% 
@@ -265,14 +265,12 @@ e2 = plt_dat %>%
   ggplot(aes(y = gene_labels, fill =zic_sig))+
   geom_bar(stat = "count") +
   facet_grid(dev_sig~cat, scales = "free", space = "free", labeller = labeller(dev_sig = c("Down" = "Fail to Down-regulate", "Up"="Fail to Up-regulate")))+
-  scale_fill_manual(values = c("Up"="#D81B60","Down"="#1E88E5","Static" ="gray")) +
+  scale_fill_manual(values = c("Up"="red","Down"="blue","Static" ="black")) +
   theme_classic() + 
   labs(y = "", x = "# Zic Peaks Mapped to Gene", fill = "DIV7/DIV3") +
   theme(axis.text.y = element_markdown(),
         axis.text.x = element_markdown(size = 8), 
-        legend.position = "none",
-        strip.background = element_rect(fill = "black"),
-        strip.text = element_text(color = "white"))
+        legend.position = "none")
       
       
 
@@ -290,16 +288,20 @@ plt_dat %>%
   dplyr::count()
 ```
 
-```{r, fig.width=12, fig.height=15}
-d = plot_grid(d1, d2, labels = c("C", "D"), ncol =1)
-fig4 = plot_grid(c,
-          plot_grid(e2, d,ncol = 2, rel_widths = c(1,1), labels = c("B", "")),
-          ncol =1,
-          rel_heights = c(.4, .6),
-          labels = "A")
+```{r, fig.width=15, fig.height=15}
 
 
-png("../figures/figure4.png", height = 15, width = 12, res = 300, units = "in")
+fig4 = plot_grid(plot_grid(plot_grid( plot_grid(ma, size, loci, nrow =1, labels = c("A", "B", "C"), rel_widths = c(.5, .2, .3)), c, ncol =1,  rel_heights = c(.3, .7), labels = c("", "D")),
+           e2,
+           labels = c("", "E"),
+           rel_widths = c(.7, .3),
+           nrow = 1),
+ plot_grid(d1, d2, labels = c("F", "G"), nrow =1, rel_heights = c(.6, .4)),
+ rel_heights = c(.7, .3),
+ ncol = 1)
+
+
+png("../figures/figure4.png", height = 15, width = 15, res = 300, units = "in")
 fig4
 dev.off()
 

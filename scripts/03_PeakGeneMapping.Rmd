@@ -1,6 +1,8 @@
 ---
-title: "Figure 2"
+title: "Figure 3"
 output: html_notebook
+editor_options: 
+  chunk_output_type: inline
 ---
 
 In this document, we reproduce figures from the Zic mansuscript
@@ -28,7 +30,7 @@ library(readxl)
 ```
 
 ```{r read data in}
-# Mapped peaks to genes via chromatin loops/links
+# Mapped peaks to genes via chromatin loops/links 
 mapped_data = read_tsv("../results/FinalTables/mapped_data.txt")
 zic_loop_data = read_tsv("../results/FinalTables/zic_loop_data.txt")
 # gene expression data
@@ -54,17 +56,6 @@ loop_annotation = read_tsv("../results/FinalTables/loop_data.txt")
 ```
 
 ```{r define functions}
-#' Title
-#'
-#' @param gene - gene to plot
-#' @param tracks - GViz tracks to plot
-#' @param expand_l - Number of base-pairs to expand to the left
-#' @param expand_r - Number of base-pairs to expand to the right
-#' @param ylim - y-axis lim
-#'
-#' @return 
-#' @export
-
 
 plot_track <- function(gene, tracks,  expand_l= 0, expand_r = 0, ylim = c(0,3)){
   # getting gene info
@@ -245,9 +236,9 @@ sd1 = mapped_data %>%
   theme(plot.title = element_text(face = "bold"))
 
 
-png("../figures/supp_figure2.png", height = 4, width = 7, units = "in", res = 300)
+# png("../figures/supp_figure2.png", height = 4, width = 7, units = "in", res = 300)
 plot_grid(sa1,sb1, nrow = 1, labels = LETTERS[1:4])
-dev.off()
+# dev.off()
 
 ```
 
@@ -312,21 +303,21 @@ sd2 = n_peaks_to_gene %>%
   theme_classic() +
   labs(x = "Number of Zic Peaks", y = "Absolute Gene LFC")
 
-png("../figures/supp_figure3.png", height = 7, width = 10, units = "in", res = 300)
+# png("../figures/supp_figure3.png", height = 7, width = 10, units = "in", res = 300)
 plot_grid(sa2, 
           plot_grid(sb2, sc2,sd2, align = "v", ncol = 1, labels = c("B", "C", "D")),
           ncol = 2,
           nrow = 1,
           labels = c("A", ""),
           rel_widths = c(2, 1))
-dev.off()
+# dev.off()
 ```
 
 Supplemental Figure 3. A) Count of Zic peaks mapped to gene. B) Distribution of number of zic peaks by gene regulation. Scatterplots of C) Mean expression and D) Log2FC of genes against Number of zic peaks show that there is no correlation between number of zic peaks and gene degree of gene regulation.
 
 # Figure 2
 
-```{r zic ratio fig.height=8, fig.width=12}
+```{r zic_ratio fig.height=8, fig.width=12}
 gene_loop = loop_annotation %>% 
   dplyr::select(id, proximal= anchor_name.x, distal = anchor_name.y, gene_name) %>% 
   distinct() %>% 
@@ -336,81 +327,218 @@ gene_loop = loop_annotation %>%
   pivot_longer(cols = c("proximal", "distal"), values_to = "anchor_name", names_to = "anchor_type") %>% 
   drop_na(anchor_name) 
 
-
-dist_prox = zic_loop_data %>% dplyr::rename(sequence_name = zic_peak) %>% 
+dist_prox = 
+# Joining data
+zic_loop_data %>% dplyr::rename(sequence_name = zic_peak) %>% 
   full_join(zic_peak_data,na_matches = "never") %>%
   left_join(gene_loop, by = c("id", "anchor_name"), na_matches = "never") %>% 
   dplyr::select(anchor_name, loop_id = id, sequence_name, zic_PeakID, zic_sig, gene_name, anchor_type) %>% 
   distinct() %>% 
+# make groupings that allow N.S. peaks to be counted in both P7 and P60
+  dplyr::mutate(group_p7 = case_when(zic_sig %in% c("DOWN", "N.S.") ~ "p7", zic_sig == "UP" ~ NA_character_),
+                group_p60 = case_when(zic_sig %in% c("UP", "N.S.") ~ "p60", zic_sig == "DOWN" ~ NA_character_)) %>% 
+  pivot_longer(cols = starts_with("group"), values_to = "time", names_to = "group") %>% 
+  drop_na(time) %>% 
+  dplyr::select(-group) %>% 
+# filter for genes that have promoter and enhnacer loops
   group_by(loop_id) %>% 
   dplyr::mutate(num_anchors = n_distinct(anchor_name)) %>% 
   dplyr::filter(num_anchors > 1) %>%  
   ungroup() %>% 
   dplyr::select(-loop_id) %>% 
   distinct() %>% 
-  group_by(gene_name, anchor_type, zic_sig) %>% 
-  summarise(count = n()) %>% 
+# count the number of peaks present at P7 and P60
+  dplyr::arrange(gene_name) %>% 
+  group_by(gene_name, anchor_type, time) %>% 
+  summarise( count = n()) %>% 
   ungroup() %>% 
-  group_by( gene_name, zic_sig) %>% 
-  dplyr::mutate(total = sum(count)) %>% 
-  ungroup() %>% 
-  group_by(gene_name, zic_sig) %>% 
-  dplyr::mutate(ratio = count / total) %>% 
-  ungroup() %>% 
-  left_join(n_peaks_to_gene)
+  pivot_wider(names_from = "anchor_type", values_from = c("count")) %>% 
+  dplyr::mutate(proximal = replace_na(proximal, 0),
+                distal = replace_na(distal, 0)) %>% 
+  pivot_longer(cols = c("distal", "proximal"), names_to = "anchor_type", values_to = "count") %>% 
+# adding DE gene expression data
+  left_join(mapped_data %>% dplyr::select(gene_name, gene_sig) %>%  distinct()) 
+
+# calculate the ratio of distal to proximal peaks per time point
+ratios = dist_prox %>% 
+  pivot_wider(names_from = "anchor_type", values_from = c("count")) %>% 
+  dplyr::mutate(prox_dist = log2(proximal+1) - log2(distal+1)) %>% 
+  dplyr::select(gene_name, time, prox_dist) %>% 
+  distinct()
+
+# calculate the difference in proximal and distal peaks between time points
+diffs = dist_prox %>% 
+  pivot_wider(names_from = "time", values_from = c("count")) %>% 
+  dplyr::mutate(delta = p60 - p7,
+                lfc = log2(p60+1) - log2(p7+1) ) %>% 
+  dplyr::select(gene_name, anchor_type, delta, lfc) %>% 
+  distinct()
+
+
+dist_prox = dist_prox %>% 
+  left_join(ratios) %>% 
+  left_join(diffs)
 ```
 
-```{r zic_ratio fig.height=8, fig.width=12}
-test_list  = n_peaks_to_gene %>% 
-  top_n(10, n) %>% 
-   pull(gene_name)
 
-plot_zic_ratio(test_list)$p2
+```{r zic_ratio, fig.height=8, fig.width=12}
 
- dist_prox %>%   
-   dplyr::filter(!is.na(gene_sig)) %>% 
-   group_by(anchor_type, gene_sig, zic_sig) %>% 
-   summarize(mean_count= mean(count),
-             mean_ratio = mean(ratio),
-             sd_count = sd(count),
-             sd_ratio = sd(ratio)) %>% 
-   ungroup() %>% 
-   ggplot(aes(x = zic_sig, y = mean_count,ymin = mean_count - sd_count, ymax = mean_count + sd_count, fill = anchor_type)) +
-     geom_errorbar(position = position_dodge2(width = 0.9)) +
-    geom_col(position = position_dodge2(width = 0.9)) + 
-    theme_bw() +
-    scale_fill_manual(values = c( "grey", "black")) +
-    scale_x_discrete(labels = c("DOWN" = "P7","N.S."= "Static","UP" = "P60"))+
-    facet_wrap(~gene_sig, labeller = labeller(gene_sig = c("DOWN" = "Down-regulated","N.S."= "Constituitive","UP" = "Up-regulated") )) +
-    labs(x = "Differential Zic Region", y = "no. of Peaks", fill = "") +
-    theme(strip.background = element_rect( fill = "white"),
-          strip.text = element_markdown(),
-          strip.text.y  = element_markdown(),
-          strip.text.x  = element_markdown(),
-          legend.position = "bottom")
- 
- 
-  dist_prox %>%   
-   dplyr::filter(!is.na(gene_sig)) %>% 
-   group_by(anchor_type, gene_sig, zic_sig) %>% 
-   summarize(mean_count= mean(count),
-             mean_ratio = mean(ratio),
-             sd_count = sd(count),
-             sd_ratio = sd(ratio)) %>% 
-   ungroup() %>% 
-   ggplot(aes(x = zic_sig, y = mean_ratio,ymin = mean_ratio - sd_ratio, ymax = mean_ratio + sd_ratio, fill = anchor_type)) +
-  geom_errorbar(position = position_dodge2(width = 0.9)) +
-      geom_col(position = position_dodge2(width = 0.9)) + 
+
+ p1 = dist_prox %>%   
+   dplyr::filter(!(is.na(gene_sig) | gene_sig == "filtered")) %>% 
+   ggplot(aes(time, count, fill = anchor_type) ) +
+   geom_boxplot(width=0.5) +
     theme_classic() +
-    scale_fill_manual(values = c( "grey", "black")) +
-    scale_x_discrete(labels = c("DOWN" = "P7","N.S."= "Static","UP" = "P60"))+
-    facet_wrap(~gene_sig, labeller = labeller(gene_sig = c("DOWN" = "Down-regulated","N.S."= "Constituitive","UP" = "Up-regulated") )) +
-    labs(x = "Differential Zic Region", y = "prop. of Peaks", fill = "") +
+  #stat_compare_means(label.sep = "\n")+
+    scale_fill_manual(values = c( "grey", "white")) +
+    scale_x_discrete(limits = c("p7", "p60"), labels = c("p7" = "P7","p60" = "P60"))+
+   facet_wrap(~gene_sig, labeller = labeller(gene_sig = c("DOWN" = "Down-regulated","N.S."= "Constituitive","UP" = "Up-regulated") )) +
+    labs(x = "timepoint", y = "no. of Peaks", fill = "") +
     theme(strip.background = element_rect( fill = "white"),
           strip.text = element_markdown(),
           strip.text.y  = element_markdown(),
           strip.text.x  = element_markdown(),
           legend.position = "bottom")
+ 
+my_comparisons <- list( c("UP", "DOWN"), c("UP", "N.S."), c("DOWN", "N.S.") )
+
+ p2 = dist_prox %>% 
+  dplyr::filter(!(is.na(gene_sig) | gene_sig == "filtered")) %>% 
+  dplyr::select(gene_name, gene_sig, anchor_type, delta) %>% 
+  distinct() %>% 
+  ggplot(aes(gene_sig, delta)) +
+  geom_boxplot(width=0.5)+
+  stat_compare_means(comparisons = my_comparisons, size = 3)+
+  stat_compare_means(size = 3, label.y = -13, label.x = 2.5, label.sep = "\n") +
+  theme_classic() +
+  # scale_x_discrete(labels = c("DOWN" = "Down","N.S."= "Const","UP" = "Up"))+
+  facet_wrap(~anchor_type) +
+    labs(x = "Gene Regulation", y =  "peaks\u209a\u2086\u2080 - peaks\u209a\u2087") +
+    theme(strip.background = element_rect( fill = "white"),
+          strip.text = element_markdown(),
+          strip.text.y  = element_markdown(),
+          strip.text.x  = element_markdown(),
+          legend.position = "bottom")
+ 
+
+
+# ecdf of the lfc(p60 peaks. p7 peaks) per gene grouped by gene regulation
+ tmp = dist_prox %>% 
+  dplyr::filter(!(is.na(gene_sig) | gene_sig == "filtered")) %>% 
+  dplyr::select(gene_name, gene_sig, anchor_type, lfc) %>% 
+  distinct() 
+ 
+
+p3 = dist_prox %>% 
+  dplyr::filter(!(is.na(gene_sig) | gene_sig == "filtered")) %>% 
+  dplyr::select(gene_name, gene_sig, anchor_type, lfc) %>% 
+  distinct() %>% 
+  ggplot(aes(color = gene_sig, lfc)) +
+  stat_ecdf() +
+    theme_classic() +
+  facet_wrap(~anchor_type, labeller = labeller(gene_sig = c("DOWN" = "Down","N.S."= "Const.","UP" = "Up") )) +
+    labs(y = "cdf", x =  "LFC peaks\u209a\u2086\u2080 / peaks\u209a\u2087") +
+    theme(strip.background = element_rect( fill = "white"),
+          strip.text = element_markdown(),
+          strip.text.y  = element_markdown(),
+          strip.text.x  = element_markdown(),
+          legend.position = "bottom")
+
+ # Box plot og proximal peaks at each time po
+ p4_a =  dist_prox %>%   
+   dplyr::filter(anchor_type == "distal") %>% 
+   dplyr::filter(!(is.na(gene_sig) | gene_sig == "filtered")) %>% 
+   ggplot(aes(x = time, y = count) ) +
+   geom_boxplot(width=0.5, fill = "grey") +
+   stat_compare_means(size = 3, label.sep = "\n") +
+   facet_wrap(~gene_sig, labeller = labeller(gene_sig = c("DOWN" = "Down-regulated","N.S."= "Constituitive","UP" = "Up-regulated") )) +
+  labs(x = "timepoint", y = "no. of Peaks", fill = "") +
+  theme_classic() +
+    theme(strip.background = element_rect( fill = "white"),
+          strip.text = element_markdown(),
+          strip.text.y  = element_markdown(),
+          strip.text.x  = element_markdown(),
+          legend.position = "bottom")
+ 
+ 
+ 
+ # Box plot og proximal peaks at each time po
+ p4_b =  dist_prox %>%   
+   dplyr::filter(anchor_type == "proximal") %>% 
+   dplyr::filter(!(is.na(gene_sig) | gene_sig == "filtered")) %>% 
+   ggplot(aes(x = time, y = count) ) +
+   geom_boxplot(width=0.5) +
+   stat_compare_means(size = 3, label.sep = "\n") +
+   facet_wrap(~gene_sig, labeller = labeller(gene_sig = c("DOWN" = "Down-regulated","N.S."= "Constituitive","UP" = "Up-regulated") )) +
+  labs(x = "timepoint", y = "no. of Peaks", fill = "") +
+  theme_classic() +
+    theme(strip.background = element_rect( fill = "white"),
+          strip.text = element_markdown(),
+          strip.text.y  = element_markdown(),
+          strip.text.x  = element_markdown(),
+          legend.position = "bottom")
+ 
+ 
+
+  
+p5 = dist_prox %>% 
+  dplyr::filter(!(is.na(gene_sig) | gene_sig == "filtered")) %>% 
+  dplyr::select(gene_name, time, gene_sig, prox_dist ) %>% 
+  distinct() %>% 
+  ggplot(aes(x = time, y = prox_dist)) +
+  geom_boxplot(width=0.5) +
+  theme_classic() +
+  scale_x_discrete(limits = c("p7", "p60"), labels = c("p7" = "P7","p60" = "P60"))+
+  facet_wrap(~gene_sig, labeller = labeller(gene_sig = c("DOWN" = "Down-regulated","N.S."= "Constituitive","UP" = "Up-regulated") )) +
+    labs(x = "Differential Zic Region", y = "Proximal/Distal Ratio", fill = "") +
+    theme(strip.background = element_rect( fill = "white"),
+          strip.text = element_markdown(),
+          strip.text.y  = element_markdown(),
+          strip.text.x  = element_markdown(),
+          legend.position = "bottom")
+  
+
+# comparing the fold log Prox/Distal ratio between two time points for each gene
+# regulation category
+ tmp = dist_prox %>% 
+  dplyr::filter(!(is.na(gene_sig) | gene_sig == "filtered")) %>% 
+  dplyr::select(gene_name, time, gene_sig, prox_dist ) %>% 
+  distinct() 
+   
+stats = data.frame( gene_sig = c("DOWN", "UP", "N.S."),
+                   p.value = c( ks.test(prox_dist~time, data = tmp %>% dplyr::filter(gene_sig == 'DOWN') )$p.value,
+                                ks.test(prox_dist~time, data = tmp %>% dplyr::filter(gene_sig == 'UP') )$p.value,
+                                ks.test(prox_dist~time, data = tmp %>% dplyr::filter(gene_sig == 'N.S.') )$p.value)
+) %>% 
+  dplyr::mutate(label = ifelse(p.value < 2.2e-16, "Kolmogorov-Smirnov\n \tp < 2.2e16",paste0("Kolmogorov-Smirnov\n \tp = ", round(p.value, 4))))
+
+
+p6 = dist_prox %>% 
+  dplyr::filter(!(is.na(gene_sig) | gene_sig == "filtered")) %>% 
+  dplyr::select(gene_name, time, gene_sig, prox_dist ) %>% 
+  distinct() %>% 
+  ggplot(aes(color = time, x = prox_dist)) +
+  stat_ecdf() +
+  theme_classic() +
+ #scale_x_discrete(limits = c("p7", "p60"), labels = c("p7" = "P7","p60" = "P60"))+
+  geom_text(data = stats, aes(x = -Inf, y = -Inf, label =label), hjust = -0.1, vjust = -1, inherit.aes = FALSE, size = 3, family = "sans") +
+  facet_wrap(~gene_sig,ncol = 1 ,labeller = labeller(gene_sig = c("DOWN" = "Down-regulated","N.S."= "Constituitive","UP" = "Up-regulated") )) +
+    labs(y = "cdf", x = "LFC Proximal/Distal ", fill = "") +
+    theme(strip.background = element_rect( fill = "white"),
+          strip.text = element_markdown(),
+          strip.text.y  = element_markdown(),
+          strip.text.x  = element_markdown(),
+          legend.position = "bottom")
+  
+
+
+plot_grid(plot_grid(plot_grid(p4_a, p1,rel_widths = c(.3, .4), nrow = 1 ),
+          plot_grid(p4_b, p2,rel_widths = c(.3, .4), nrow = 1),
+          nrow = 2),
+          p6,
+          ncol = 2,
+          rel_widths = c(.7, .2))
+
 ```
 
 ```{r schematic}
@@ -449,7 +577,7 @@ plt = df %>%
   geom_errorbar(width = 0.2, position = position_dodge(.8)) +
   scale_fill_manual(values = c( "blue", "red"),labels = c("p60" = "P60", "p7" = "P7"))+
   scale_color_manual(values = c( "blue", "red"),labels = c("p60" = "P60", "p7" = "P7"))+
-  scale_x_discrete(labels=c("DOWN" = "P7 Peak", "N.S." = "Static", "UP" = "P60 Peak"), expand = c(0,0))+
+  scale_x_discrete(labels=c("DOWN" = "Early", "N.S." = "Static", "UP" = "Late"), expand = c(0,0))+
   theme_classic()+
   xlab("Zic Peak Enrichement") +
   ylab("Mean Expresson \nof Mapped Gene") +
@@ -500,7 +628,7 @@ a3 = df %>%
   geom_jitter( position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8), size = 1.2, alpha = 0.5)+
   scale_color_manual(values = c( "blue", "red"),labels = c("p60" = "P60", "p7" = "P7")) +
   scale_fill_manual(values = c( "blue", "red"),labels = c("p60" = "P60", "p7" = "P7")) +
-  scale_x_discrete(labels=c("DOWN" = "P7 Peak", "N.S." = "Static", "UP" = "P60 Peak"))+
+  scale_x_discrete(labels=c("DOWN" = "Early", "N.S." = "Static", "UP" = "Late"))+
   theme_classic() 
 
 a4 = df %>% 
@@ -510,7 +638,7 @@ a4 = df %>%
   stat_summary(fun.data = "mean_se",  fun.args = list(mult = 1),  geom = "pointrange",  position = position_dodge(0.8)) +
   scale_color_manual(values = c( "blue", "red"),labels = c("p60" = "P60", "p7" = "P7")) +
   scale_fill_manual(values = c( "blue", "red"),labels = c("p60" = "P60", "p7" = "P7")) +
-  scale_x_discrete(labels=c("DOWN" = "P7 Peak", "N.S." = "Static", "UP" = "P60 Peak"))+
+  scale_x_discrete(labels=c("DOWN" = "Early", "N.S." = "Static", "UP" = "Late"))+
   theme_classic() +
   ylab("Mean of Means")
 
@@ -521,7 +649,7 @@ a5 = df %>%
   stat_summary(fun.data = median.quartile, geom = "pointrange", position = position_dodge(0.8))+
   scale_color_manual(values = c( "blue", "red"),labels = c("p60" = "P60", "p7" = "P7")) +
   scale_fill_manual(values = c( "blue", "red"),labels = c("p60" = "P60", "p7" = "P7")) +
-  scale_x_discrete(labels=c("DOWN" = "P7 Peak", "N.S." = "Static", "UP" = "P60 Peak"))+
+  scale_x_discrete(labels=c("DOWN" = "Early", "N.S." = "Static", "UP" = "Late"))+
   theme_classic() +
   ylab("Median of Means")
 
@@ -541,15 +669,15 @@ b = mapped_data %>%
   ggplot(aes(x = zic_sig, y =n,  fill = gene_sig))+
   geom_bar(position = "fill", stat = "identity") +
   geom_text(aes(label=n),position = position_fill(vjust = 0.5), color = "white", fontface = "bold", size = 3) +
-  scale_x_discrete(labels=c("DOWN" = "P7 Peak", "N.S." = "Static", "UP" = "P60 Peak"), expand = c(0,0))+
+  scale_x_discrete(labels=c("DOWN" = "Early", "N.S." = "Static", "UP" = "Late"), expand = c(0,0))+
   scale_y_continuous(expand = c(0,0))+
   scale_fill_manual( limits = c("N.S.", "DOWN", "UP"), labels = c("N.S.", "P7", "P60"), values = c("black", "blue", "red"))+
   theme_classic() +
-  labs(x = "Zic Peak\n Enrichment", fill = "Gene\nEnrichment", y = "Proportion\n of Genes") +
+  labs(x = "Differential Zic\n Region", fill = "Gene\nEnrichment", y = "Proportion of Genes") +
   theme( legend.position = "bottom",
-         legend.text = element_text(size = 6),
+         legend.text = element_text(size = 8),
          legend.title = element_text(size = 8, face = "bold"),
-        legend.key.size = unit(.5, "lines"),
+        legend.key.size = unit(.7, "lines"),
        # legend.box.background = element_rect(color = "black")
         )
 
@@ -560,7 +688,7 @@ b
 
 ```
 
-```{r panel c, fig.height=4, fig.width=8}
+```{r panel c, fig.height=6, fig.width=6}
 
 top_genes = n_peaks_to_gene %>% 
   dplyr::filter(gene_sig != "N.S.") %>% 
@@ -587,7 +715,7 @@ c = mapped_data %>%
   #coord_flip()+
   # geom_text(aes(label = n), hjust = 1, color = "white", fontface = "bold") +
   facet_wrap(.~gene_sig, scales = "free", labeller = labeller(gene_sig = c("DOWN" = "Down-regulated", "UP" = "Up-regulated")), ncol = 2)+
-  scale_fill_manual( name = "Zic Peak Enrichment", limits = c("DOWN", "N.S.", "UP"), labels = c("P7 Peak", "Static", "P60 Peak"), values = c("blue", "black", "red"))+
+  scale_fill_manual( name = "Differential Zic Region", limits = c("DOWN", "N.S.", "UP"), labels = c("Early", "Static", "Late"), values = c("blue", "black", "red"))+
   theme_classic() + 
   labs(y = "Gene Symbol", x = "# Zic Peaks Mapped to Gene") +
   theme(axis.text.x = element_text(size = 8, angle = 45, hjust = 1), legend.position = "bottom",
@@ -595,8 +723,8 @@ c = mapped_data %>%
                                                      legend.box.just = "right",
                                                      legend.margin = margin(2, 2, 2, 2),
                                                      #legend.box.background = element_rect(color="black", size=1),
-                                                     legend.text = element_text(size = 5),
-                                                     legend.key.size = unit(.3, "lines"),
+                                                     legend.text = element_text(size = 8),
+                                                     legend.key.size = unit(.7, "lines"),
                                                      legend.title = element_text(size = 8, face = "bold"))
       
 
@@ -605,7 +733,7 @@ c
 
 ```
 
-```{r panel d, fig.width=15, fig.height=6}
+```{r panel d, fig.width=12, fig.height=4}
 ## prepare data
  # set scheme
 scheme <- getScheme(name=getOption("Gviz.scheme"))
@@ -621,7 +749,8 @@ scheme$GeneRegionTrack$collapseTranscripts = FALSE
 scheme$DataTrack$fill.histogram = "darkblue"
 scheme$DataTrack$col.histogram = "darkblue"
 scheme$GdObject$col.border.title = "transparent"
-
+scheme$GdObject$fontsize = 15
+scheme$AnnotationTrack$fontsize.group = 20
 addScheme(scheme, "myScheme")
 options(Gviz.scheme="myScheme")
 
@@ -689,9 +818,9 @@ p60_rna_bw <-  DataTrack(import.bw("../sequencing_data/preprocessed_data/RNA/p60
 # plot_track("Chd7", tracks,  expand_l = 10000, expand_r = 250000)
 
 
-#png("../figures/fig3_d.png", units = "in", height = 6, width = 15, res = 300)
+png("../figures/fig3_d.png", units = "in", height = 4, width = 12, res = 300)
 plot_track("Nr4a3", tracks,  expand_l = 600000, expand_r = 5000, ylim = c(0,2))
-#dev.off()
+dev.off()
 ```
 
 
@@ -702,17 +831,17 @@ d = rasterGrob(readPNG("../figures/fig3_d.png"))
 
 ![](../figures/fig3_d.png)
 
-```{r figure 2, fig.height=15, fig.width=15}
+```{r figure 2, fig.height=10, fig.width=12}
 
 
-fig3 = plot_grid( plot_grid( sch,  plot_grid(b, a1, ncol = 1, labels = c("B", "C")), c, rel_widths = c(.5, .15, .35), nrow = 1,labels = c("A", "", "D")),
+fig3 = plot_grid( plot_grid( sch,  plot_grid(b, a1, ncol = 1, labels = c("B", "C")), c, rel_widths = c(.45, .2, .35), nrow = 1,labels = c("A", "", "D")),
            d,
            ncol = 1,
            labels = c( "","E" ),
-           rel_heights = c(.50, .50)
+           rel_heights = c(.6, .4)
            )
 
-png("../figures/figure3.png", height = 12, width = 12, res = 300, units = "in")
+png("../figures/figure3.png", height = 10, width = 12, res = 300, units = "in")
 fig3
 dev.off()
 
