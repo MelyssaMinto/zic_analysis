@@ -236,9 +236,9 @@ sd1 = mapped_data %>%
   theme(plot.title = element_text(face = "bold"))
 
 
-# png("../figures/supp_figure2.png", height = 4, width = 7, units = "in", res = 300)
+png("../figures/supp_figure_anchor.png", height = 4, width = 7, units = "in", res = 300)
 plot_grid(sa1,sb1, nrow = 1, labels = LETTERS[1:4])
-# dev.off()
+dev.off()
 
 ```
 
