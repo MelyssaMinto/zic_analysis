@@ -89,7 +89,7 @@ size
 
 ```{r}
 
-loci = bind_rows(list(Late= zic_cutnrun_anno_up@annoStat, Early = zic_cutnrun_anno_down@annoStat, Static = zic_cutnrun_anno_static@annoStat),.id = "id") %>% 
+loci = bind_rows(list(DIV7= zic_cutnrun_anno_up@annoStat, DIV3 = zic_cutnrun_anno_down@annoStat, Static = zic_cutnrun_anno_static@annoStat),.id = "id") %>% 
   dplyr::mutate(Feature2 = case_when( grepl("Promoter", Feature) ~ "Promoter Proximal",
                                       Feature %in% c("Downstream (<=300)", "Distal Intergenic") ~ "Distal",
                                       TRUE ~ "Gene Body"),
@@ -98,7 +98,7 @@ loci = bind_rows(list(Late= zic_cutnrun_anno_up@annoStat, Early = zic_cutnrun_an
   geom_col() +
   labs(y = "% Peaks", x = "Differential Zic Region", fill = "Region") +
   theme_classic() +
-  scale_x_discrete(limits = c("Early", "Static", "Late")) +
+  scale_x_discrete(limits = c("DIV3", "Static", "DIV7")) +
   scale_fill_manual(values = c("#bad2e1","grey", "#b15928"), labels = c("Promoter\nProximal", "Gene\nBody", "Distal"))+
   theme( panel.grid = element_blank(), legend.position = "right", legend.key.size = unit(.2, 'cm')) +
   scale_y_continuous(expand = c(0,0), labels = scales::percent_format(scale = 1))
@@ -162,7 +162,7 @@ c = invitro_data %>%
   scale_color_manual(values = c("#143589", "#E1BE6A", "#40B0A6"), limits =  c("Zic1 KD", "Zic2 KD", "Zic1 & Zic2 KD"))+
   theme(legend.position = "bottom",
         strip.background = element_rect(fill = "white"),
-        strip.text = element_text(color = "black"))+
+        strip.text = element_text(color = "black", size = 12))+
   labs(x = "GE log2(DIV7 / DIV3)", y = "GE log2(Zic1/2 KD / Ctrl)", color = "KD", size = "no. mapped peaks" )
 
 c
@@ -265,12 +265,12 @@ e2 = plt_dat %>%
   ggplot(aes(y = gene_labels, fill =zic_sig))+
   geom_bar(stat = "count") +
   facet_grid(dev_sig~cat, scales = "free", space = "free", labeller = labeller(dev_sig = c("Down" = "Fail to Down-regulate", "Up"="Fail to Up-regulate")))+
-  scale_fill_manual(values = c("Up"="red","Down"="blue","Static" ="black")) +
+  scale_fill_manual(values = c("Up"="red","Down"="blue","Static" ="black"), labels = c("DIV7", "DIV3", "Static"), limits = c("Up", "Down", "Static")) +
   theme_classic() + 
   labs(y = "", x = "# Zic Peaks Mapped to Gene", fill = "DIV7/DIV3") +
-  theme(axis.text.y = element_markdown(),
+  theme(axis.text.y = element_markdown(size = 10),
         axis.text.x = element_markdown(size = 8), 
-        legend.position = "none")
+        strip.text = element_text(size = 12))
       
       
 
@@ -279,6 +279,7 @@ e = plot_grid(plot_grid(e1, e2),
               rel_heights = c(.95,.05))
   
 e
+e2
 ```
 ```{r}
 plt_dat %>% 
@@ -304,5 +305,5 @@ fig4 = plot_grid(plot_grid(plot_grid( plot_grid(ma, size, loci, nrow =1, labels 
 png("../figures/figure4.png", height = 15, width = 15, res = 300, units = "in")
 fig4
 dev.off()
-
+fig4
 ```
