@@ -29,11 +29,67 @@ zic_cutnrun_anno_up = read_rds("../results/invitro/diffbind_cutnrun_zic/peaks_7v
 zic_cutnrun_anno_down = read_rds("../results/invitro/diffbind_cutnrun_zic/peaks_7v3_down_annotation.Rds")
 zic_cutnrun_anno_static = read_rds("../results/invitro/diffbind_cutnrun_zic/peaks_7v3_static_annotation.Rds")
 
+div3v7_expr = read_rds("../results/invitro/diffexpr/res_d7_d3_ashr.Rds")
+zic1kd_expr = read_rds("../results/invitro/diffexpr/res_zic1_ashr.Rds")
+zic2kd_expr = read_rds("../results/invitro/diffexpr/res_zic2_ashr.Rds")
+
 ```
 
 
 
 # Plots
+In  Culture Gene Expression Stats
+```{r}
+plot_volcano<- function(data, height, up, down, comp){
+  data = 
+    data %>% 
+    as_tibble() %>% 
+    dplyr::mutate(sig = case_when(log2FoldChange > 0 & padj <= 0.05 ~ "UP",
+                         log2FoldChange < 0 & padj <= 0.05 ~ "DOWN",
+                         is.na(padj) ~ "filtered",
+                         TRUE ~ "N.S.")) 
+  
+  tab = table(data$sig)
+  cat(tab)
+
+  data %>% 
+    dplyr::filter(sig != "filtered") %>% 
+    ggplot(aes(x = log2FoldChange, y = -log10(padj), color = sig)) +
+    geom_point() +
+    scale_color_manual(limits = c("DOWN", "N.S.", "UP"), values = c("blue", "black", "red"), labels = c("Early", "Static", "Late")) +
+    labs(y = "log10(adjusted p-value)", x = paste0(comp, " Log2FC")) +
+    geom_text(x = up, y = height, label = paste0("Up-regulated\n n = ",tab["UP"]), color = "red")+
+    geom_text(x = down, y = height, label = paste0("Down-regulated\n n = ",tab["DOWN"] ), color = "blue")+
+    theme_classic() +
+    theme(legend.position = "none")
+}
+```
+
+
+```{r, fig.height=4, fig.width=12}
+volc_a = plot_volcano(div3v7_expr, 39, 4, -3, "DIV7/DIV3")
+volc_b = plot_volcano(zic1kd_expr, 21, 4.5, -2, "Zic1 KD v WT (DVI7)")
+volc_c = plot_volcano(zic2kd_expr, 25, 2.5, -2, "Zic2 KD v WT (DVI7)")
+
+plot_grid(volc_a, volc_b, volc_c, nrow = 1)
+```
+```{r}
+rrho_zic1 = rasterGrob(readPNG("../results/invitro/rrho/zic1_dev_RRHO_neg.png"))
+rrho_zic2 = rasterGrob(readPNG("../results/invitro/rrho/zic2_dev_RRHO_neg.png"))
+
+plot_grid(rrho_zic1, rrho_zic2)
+
+```
+```{r supp fig, fig.height=6, fig.width=10}
+supp = plot_grid(volc_a, volc_b, volc_c,rrho_zic1,rrho_zic1,  nrow = 2, labels = LETTERS[1:5])
+
+png("../figures/supp_figure_vitro.png", height = 6, width = 10, res = 300, units = "in")
+supp
+dev.off()
+
+supp
+```
+
 Zic Cut n run stats
 ```{r}
 
@@ -63,7 +119,7 @@ ma = plt_dat %>%
   ggplot(aes(y = log2FoldChange, x = log10(baseMean), color = sig)) +
   geom_point() +
   scale_color_manual(limits = c("DOWN", "N.S.", "UP"), values = c("blue", "black", "red"), labels = c("Early", "Static", "Late")) +
-  labs(x = "log10(Avg Zic CutnRun Signal)", y = "P60 / P7 Log2FC") +
+  labs(x = "log10(Avg Zic CutnRun Signal)", y = "DIV7 /  Log2FC") +
   geom_text(x = 2.25, y = 1.5, label = paste0("Increased Zic Binding\n n = ",num_up), color = "red")+
   geom_text(x = 2.25, y = -1.85, label = paste0("Decreased Zic Binding\n n = ",num_down ), color = "blue")+
   theme_classic() +
