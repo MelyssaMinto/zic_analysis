@@ -24,6 +24,12 @@ Idea is to get the direct targets assignments using only in vitro data.
 invitro_data = read_tsv("../results/FinalTables/invitro_table.txt")
 go_results =  load("../results/invitro/figure_invitro/go_cat.RData")
 zic_cuntnrun = read_rds("../results/invitro/diffbind_cutnrun_zic/res_7v3_ashr.Rds")
+zic_cuntnrun7v1 = read_rds("../results/invitro/diffbind_cutnrun_zic/res_7v1_ashr.Rds")
+zic_cuntnrun7v5 = read_rds("../results/invitro/diffbind_cutnrun_zic/res_7v5_ashr.Rds")
+zic_cuntnrun3v1 = read_rds("../results/invitro/diffbind_cutnrun_zic/res_3v1_ashr.Rds")
+zic_cuntnrun5v3 = read_rds("../results/invitro/diffbind_cutnrun_zic/res_5v3_ashr.Rds")
+zic_cuntnrun5v1 = read_rds("../results/invitro/diffbind_cutnrun_zic/res_5v1_ashr.Rds")
+
 
 zic_cutnrun_anno_up = read_rds("../results/invitro/diffbind_cutnrun_zic/peaks_7v3_up_annotation.Rds")
 zic_cutnrun_anno_down = read_rds("../results/invitro/diffbind_cutnrun_zic/peaks_7v3_down_annotation.Rds")
@@ -63,6 +69,41 @@ plot_volcano<- function(data, height, up, down, comp){
     theme_classic() +
     theme(legend.position = "none")
 }
+
+plot_ma <- function(data, x, up, down, comp){
+  plt_dat = data %>% 
+  as_tibble() %>% 
+  dplyr::mutate(sig = case_when(log2FoldChange > 0 & padj <= 0.05 ~ "UP",
+                         log2FoldChange < 0 & padj <= 0.05 ~ "DOWN",
+                         is.na(padj) ~ "filtered",
+                         TRUE ~ "N.S.")) 
+
+  tab = plt_dat %>% 
+    group_by(sig) %>% 
+    dplyr::count() %>% 
+    ungroup()
+    
+  num_up = tab$n[tab$sig == "UP"]
+  num_down = tab$n[tab$sig == "DOWN"]
+  
+  tab
+  
+  total = tab %>% 
+    dplyr::filter(sig != "filtered") %>% 
+    summarize(total = sum(n))
+    
+  plt_dat %>% 
+    dplyr::filter(sig != "filtered") %>% 
+    ggplot(aes(y = log2FoldChange, x = log10(baseMean), color = sig)) +
+    geom_point() +
+    scale_color_manual(limits = c("DOWN", "N.S.", "UP"), values = c("blue", "black", "red"), labels = c("Early", "Static", "Late")) +
+    labs(x = "log10(Avg Zic CutnRun Signal)", y = paste0(comp, " Log2FC")) +
+    geom_text(x = x, y = up, label = paste0("Increased Zic Binding\n n = ",num_up), color = "red")+
+    geom_text(x = x, y = down, label = paste0("Decreased Zic Binding\n n = ",num_down ), color = "blue")+
+    theme_classic() +
+    theme(legend.position = "none")
+
+}
 ```
 
 
@@ -91,42 +132,30 @@ supp
 ```
 
 Zic Cut n run stats
-```{r}
-
-plt_dat = zic_cuntnrun %>% 
-  as_tibble() %>% 
-  dplyr::mutate(sig = case_when(log2FoldChange > 0 & padj <= 0.05 ~ "UP",
-                         log2FoldChange < 0 & padj <= 0.05 ~ "DOWN",
-                         is.na(padj) ~ "filtered",
-                         TRUE ~ "N.S.")) 
-
-tab = plt_dat %>% 
-  group_by(sig) %>% 
-  dplyr::count() %>% 
-  ungroup()
-  
-num_up = tab$n[tab$sig == "UP"]
-num_down = tab$n[tab$sig == "DOWN"]
-
-tab
-
-total = tab %>% 
-  dplyr::filter(sig != "filtered") %>% 
-  summarize(total = sum(n))
-  
-ma = plt_dat %>% 
-  dplyr::filter(sig != "filtered") %>% 
-  ggplot(aes(y = log2FoldChange, x = log10(baseMean), color = sig)) +
-  geom_point() +
-  scale_color_manual(limits = c("DOWN", "N.S.", "UP"), values = c("blue", "black", "red"), labels = c("Early", "Static", "Late")) +
-  labs(x = "log10(Avg Zic CutnRun Signal)", y = "DIV7 /  Log2FC") +
-  geom_text(x = 2.25, y = 1.5, label = paste0("Increased Zic Binding\n n = ",num_up), color = "red")+
-  geom_text(x = 2.25, y = -1.85, label = paste0("Decreased Zic Binding\n n = ",num_down ), color = "blue")+
-  theme_classic() +
-  theme(legend.position = "none")
+```{r }
+ma  = plot_ma(zic_cuntnrun, 2.25, 1.5, -1.85, "DIV7/DIV3")
+ma7v1  = plot_ma(zic_cuntnrun7v1, 2.5, 1.5, -1.85, "DIV7/DIV1")
+ma7v5  = plot_ma(zic_cuntnrun7v5, 2.5, .5, -.5, "DIV7/DIV5")
+ma3v1  = plot_ma(zic_cuntnrun3v1, 2.5, 2, -1.1, "DIV3/DIV1")
+ma5v1  = plot_ma(zic_cuntnrun5v1, 2.5, 1.5, -1.85, "DIV5/DIV1")
+ma5v3  = plot_ma(zic_cuntnrun5v3, 2.5, .5, -.7, "DIV5/DIV3")
 
 ma
 ```
+
+
+```{r, fig.height=10, fig.width=12}
+
+supp2 = plot_grid(ma7v1, ma7v5,ma3v1, ma5v1, ma5v3, nrow = 3, labels = LETTERS[1:5] )
+
+png("../figures/supp_figure_cutrun.png", height = 10, width = 12, res = 300, units = "in")
+supp2
+dev.off()
+
+supp2
+```
+
+
 ```{r}
 
 size = bind_rows(list(Early = zic_cutnrun_anno_down@anno %>% as_tibble(),

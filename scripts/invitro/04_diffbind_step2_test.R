@@ -17,8 +17,9 @@ contrasts_list <- list(c("time","D3Z","D1Z"),
                        c("time","D5Z","D3Z"),
                        c("time","D7Z","D5Z"),
                        c("time","D7Z","D3Z"),
-                       c("time","D7Z","D1Z"))
-res_names <- c("res_3v1","res_5v3","res_7v5","res_7v3","res_7v1")
+                       c("time","D7Z","D1Z"),
+                       c("time","D5Z","D1Z"))
+res_names <- c("res_3v1","res_5v3","res_7v5","res_7v3","res_7v1", "res_5v1")
 
 
 # Prefiltering
@@ -64,8 +65,8 @@ res_down_list <- map(res_ashr_list, get_ranges_down, deseq = deseq_obj_contrasts
 
 res_all_any <- granges(rowRanges(deseq_obj_lrt)[tidyr::replace_na(res_all_ashr$padj,1) < 0.05 ])
 names(res_ashr_list) <- res_names
-res_7v1_up_lfc2 <- get_ranges_up(res_ashr_list$res_7v1, deseq_obj_contrasts, lfc = 2)
-res_7v1_down_lfc2 <-  get_ranges_down(res_ashr_list$res_7v1, deseq_obj_contrasts, lfc = -2)
+res_7v1_up_lfc2 <- get_ranges_up(res_ashr_list$res_7v1, deseq_obj_contrasts, lfc = 0)
+res_7v1_down_lfc2 <-  get_ranges_down(res_ashr_list$res_7v1, deseq_obj_contrasts, lfc = 0)
 
 
 
