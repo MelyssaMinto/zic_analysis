@@ -348,7 +348,7 @@ plt_dat %>%
 ```{r, fig.width=15, fig.height=15}
 
 
-fig4 = plot_grid(plot_grid(plot_grid( plot_grid(ma, size, loci, nrow =1, labels = c("A", "B", "C"), rel_widths = c(.5, .2, .3)), c, ncol =1,  rel_heights = c(.3, .7), labels = c("", "D")),
+fig4 = plot_grid(plot_grid(plot_grid( c, plot_grid(ma, size, loci, nrow =1, labels = c("B", "C", "D"), rel_widths = c(.5, .2, .3)), ncol =1,  rel_heights = c(.7, .3), labels = c("A", "")),
            e2,
            labels = c("", "E"),
            rel_widths = c(.7, .3),
