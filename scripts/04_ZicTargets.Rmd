@@ -740,6 +740,27 @@ track_zdd2 = rasterGrob(readPNG("../figures/fig4_example_Ets2.png"))
 ![](../figures/fig4_example_Nhlh1.png)
 
 ![](../figures/fig4_example_Ets2.png)
+
+
+```{r fig4, fig.width=15, fig.height=15}
+tracks_fig = plot_grid(track_zdd1, track_zdd2, ncol = 1, labels = c("F", "G"), vjust = -1)
+go_fig = plot_grid(d1, d2, labels = c("H", "I"), ncol =1, rel_heights = c(.6, .4))
+
+fig4 = plot_grid(plot_grid(plot_grid( c, plot_grid(ma, size, loci, nrow =1, labels = c("B", "C", "D"), rel_widths = c(.5, .2, .3)), ncol =1,  rel_heights = c(.7, .3), labels = c("A", "")),
+           e2,
+           labels = c("", "E"),
+           rel_widths = c(.7, .3),
+           nrow = 1),
+ plot_grid(tracks_fig, go_fig, nrow =1, rel_widths = c(.65, .35)),
+ rel_heights = c(.55, .45),
+ ncol = 1)
+
+
+png("../figures/figure4.png", height = 15, width = 15, res = 300, units = "in")
+fig4
+dev.off()
+fig4
+```
 ```{r TF enrichment, fig.height=10, fig.width=12}
 tf_b_1 = dev_bart %>% 
   dplyr::mutate(TF = fct_reorder(TF, -log10(dev_anchors))) %>% 
@@ -894,24 +915,4 @@ supp_gene_dis
 dev.off()
 
 supp_gene_dis
-```
-
-```{r fig4, fig.width=15, fig.height=15}
-tracks_fig = plot_grid(track_zdd1, track_zdd2, ncol = 1, labels = c("F", "G"), vjust = 1)
-go_fig = plot_grid(d1, d2, labels = c("H", "I"), ncol =1, rel_heights = c(.6, .4))
-
-fig4 = plot_grid(plot_grid(plot_grid( c, plot_grid(ma, size, loci, nrow =1, labels = c("B", "C", "D"), rel_widths = c(.5, .2, .3)), ncol =1,  rel_heights = c(.7, .3), labels = c("A", "")),
-           e2,
-           labels = c("", "E"),
-           rel_widths = c(.7, .3),
-           nrow = 1),
- plot_grid(tracks_fig, go_fig, nrow =1, rel_widths = c(.65, .35)),
- rel_heights = c(.55, .45),
- ncol = 1)
-
-
-png("../figures/figure4.png", height = 15, width = 15, res = 300, units = "in")
-fig4
-dev.off()
-fig4
 ```
