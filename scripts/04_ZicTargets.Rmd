@@ -12,6 +12,32 @@ library(cowplot)
 library(clusterProfiler)
 library(ggtext)
 library(org.Mm.eg.db)
+library(DESeq2)
+library(grid)
+library(png)
+library(GenomicInteractions)
+library(TxDb.Mmusculus.UCSC.mm10.knownGene)
+library(rtracklayer)
+library(Gviz)
+
+ # set scheme
+scheme <- getScheme(name=getOption("Gviz.scheme"))
+scheme$GdObject$col.axis = "white"
+scheme$GdObject$background.title = "black"
+scheme$GdObject$fontcolor = "black"
+scheme$GdObject$rotation.title = 90
+scheme$GeneRegionTrack$transcriptAnnotation = "symbol"
+scheme$GeneRegionTrack$col = "black"
+scheme$GeneRegionTrack$fill = "black"
+scheme$GeneRegionTrack$collapseTranscripts = FALSE
+scheme$DataTrack$fill.histogram = "darkblue"
+scheme$DataTrack$col.histogram = "darkblue"
+scheme$GdObject$col.border.title = "transparent"
+scheme$HighlightTrack$col = "grey"
+scheme$HighlightTrack$fill = "#e3e8ff"
+addScheme(scheme, "myScheme")
+options(Gviz.scheme="myScheme")
+options(ucscChromosomeNames=FALSE)
 ```
 
 # Direct target assignments focusing on in vitro data.
@@ -20,7 +46,7 @@ Idea is to get the direct targets assignments using only in vitro data.
 
 # Read datasets
 
-```{r echo = FALSE,warning = FALSE,message = FALSE, error = FALSE}
+```{r read data in, echo = FALSE,warning = FALSE,message = FALSE, error = FALSE}
 invitro_data = read_tsv("../results/FinalTables/invitro_table.txt")
 go_results =  load("../results/invitro/figure_invitro/go_cat.RData")
 zic_cuntnrun = read_rds("../results/invitro/diffbind_cutnrun_zic/res_7v3_ashr.Rds")
@@ -39,13 +65,38 @@ div3v7_expr = read_rds("../results/invitro/diffexpr/res_d7_d3_ashr.Rds")
 zic1kd_expr = read_rds("../results/invitro/diffexpr/res_zic1_ashr.Rds")
 zic2kd_expr = read_rds("../results/invitro/diffexpr/res_zic2_ashr.Rds")
 
+deseq_obj_cutnrun_union <- readRDS("../results/invitro/diffbind_cutnrun_zic/deseq_obj_chip_cutnrun.Rds")
+
+# Chromatin Links
+# > P56 PLAC-seq loops. source: https://www.nature.com/articles/s41586-019-1190-7
+loop_data_adult <- read_delim("../sequencing_data/Yamada/combined_MAPS_peaks.txt",
+                        delim = "\t", escape_double = FALSE, trim_ws = TRUE, col_names = F) %>% 
+                    dplyr::mutate(loop_id = paste0("loop_", 1:n())) 
+# > P4 loops derived from Hi-C. source: https://www.nature.com/articles/s41467-021-25846-3
+loop_data_young <- readxl::read_excel("../sequencing_data/Reddy/GSE164360_Hi-C_Summary.xlsx") %>% 
+    dplyr::select(ends_with(c("A", "B"))) %>% 
+  set_names(paste0("X",1:6)) %>% 
+  dplyr::mutate(loop_id = paste0("loop_", 1:n())) %>% 
+  dplyr::mutate(X1 = ifelse(is.na(X1), "chrX", paste0("chr",X1)),
+                X4 = ifelse(is.na(X4), "chrX", paste0("chr",X4)))
+
 ```
 
 
 
-# Plots
-In  Culture Gene Expression Stats
-```{r}
+
+```{r define functions}
+get_overlaps_by_element <- function(peaks_a, peaks_b) {
+                              intersection1 <- sum(IRanges::overlapsAny(peaks_a,peaks_b))
+                              setdiff1 <- length(peaks_a) - intersection1
+                              intersection2 <- sum(IRanges::overlapsAny(peaks_b,peaks_a))
+                              setdiff2 <-length(peaks_b) - intersection2
+                              
+                              return(data.frame("intersection1" = intersection1,
+                                                "intersection2" = intersection2,
+                                                "setdiff1" = setdiff1,
+                                                "setdiff2" = setdiff2))}
+
 plot_volcano<- function(data, height, up, down, comp){
   data = 
     data %>% 
@@ -70,7 +121,7 @@ plot_volcano<- function(data, height, up, down, comp){
     theme(legend.position = "none")
 }
 
-plot_ma <- function(data, x, up, down, comp){
+plot_ma <- function(data, x, up, down, comp, color_up = "red", color_down = "blue"){
   plt_dat = data %>% 
   as_tibble() %>% 
   dplyr::mutate(sig = case_when(log2FoldChange > 0 & padj <= 0.05 ~ "UP",
@@ -96,25 +147,86 @@ plot_ma <- function(data, x, up, down, comp){
     dplyr::filter(sig != "filtered") %>% 
     ggplot(aes(y = log2FoldChange, x = log10(baseMean), color = sig)) +
     geom_point() +
-    scale_color_manual(limits = c("DOWN", "N.S.", "UP"), values = c("blue", "black", "red"), labels = c("Early", "Static", "Late")) +
+    scale_color_manual(limits = c("DOWN", "N.S.", "UP"), values = c(color_down, "black", color_up)) +
     labs(x = "log10(Avg Zic CutnRun Signal)", y = paste0(comp, " Log2FC")) +
-    geom_text(x = x, y = up, label = paste0("Increased Zic Binding\n n = ",num_up), color = "red")+
-    geom_text(x = x, y = down, label = paste0("Decreased Zic Binding\n n = ",num_down ), color = "blue")+
+    geom_text(x = x, y = up, label = paste0("Increased Zic Binding\n n = ",num_up), color = color_up)+
+    geom_text(x = x, y = down, label = paste0("Decreased Zic Binding\n n = ",num_down ), color = color_down)+
     theme_classic() +
     theme(legend.position = "none")
 
 }
+
+plot_track <- function(gene, tracks, highlight=NULL, w = 1000, expand_l= 0, expand_r = 0, ylim = c(0,3), highlight_gene=F, g_exp_l=1000, g_exp_r=0){
+  # getting gene info
+  id = mapIds(org.Mm.eg.db, keys =gene , column ="ENTREZID", keytype="SYMBOL")
+  info = biomaRt::select(TxDb.Mmusculus.UCSC.mm10.knownGene, keys = id  , columns=c("TXNAME", "TXSTART", "TXEND", "TXCHROM"), keytype="GENEID")
+  start_g = info$TXSTART[1]
+  end_g = info$TXEND[1]
+  chr = info$TXCHROM[1]
+  
+  # setting up plot inputs
+  start = start_g - expand_l
+  end = end_g + expand_r  
+  cat(chr, start, end)
+  # getting gene track
+  gencode <- UcscTrack(genome = "mm10", chromosome = chr,
+                      track = "All GENCODE VM25", from = start, to = end,
+                      trackType = "GeneRegionTrack", 
+                      rstarts = "exonStarts", rends = "exonEnds", 
+                      gene = "name",  symbol = "name2", 
+                      transcript = "name", strand = "strand",
+                      name = "transcripts", showID=TRUE)
+ 
+  
+    # > highlight track
+  if(is.null(highlight)){
+    # create trackset for plotting
+    ts = tracks 
+    ts[ length(tracks) +1 ] = gencode
+    ts[length(tracks) + 2] = genomeAxis
+  }else{
+    # creating trackset for plotting with highlighting
+    ht1 <- HighlightTrack(trackList = tracks, start = highlight, width = w, chromosome = chr)
+    ts = list(ht1, gencode, genomeAxis)
+  }
+  
+  # highlight gene
+  if(highlight_gene){
+    ht1 <- HighlightTrack(trackList = gencode, start = start_g-g_exp_l, width = (end_g - start_g)+ g_exp_r, chromosome = chr)
+  
+    ts = tracks 
+    ts[ length(tracks) +1 ] = ht1
+    ts[length(tracks) + 2] = genomeAxis
+  }
+  
+
+    #plot
+    # > create a vector of track sizes
+    s = c(rep(1, length(tracks) ), 0.5, 1)
+   Gviz::plotTracks(trackList=ts,  
+               from=start,
+               to=end, 
+               chromosome=chr,
+               type="hist",
+               window = 1000,
+               ylim = ylim,
+               sizes = s)
+  
+  
+}
+
 ```
+# Plots
+In  Culture Gene Expression Stats
 
-
-```{r, fig.height=4, fig.width=12}
+```{r expression volcano plots, fig.height=4, fig.width=12}
 volc_a = plot_volcano(div3v7_expr, 39, 4, -3, "DIV7/DIV3")
 volc_b = plot_volcano(zic1kd_expr, 21, 4.5, -2, "Zic1 KD v WT (DVI7)")
 volc_c = plot_volcano(zic2kd_expr, 25, 2.5, -2, "Zic2 KD v WT (DVI7)")
 
 plot_grid(volc_a, volc_b, volc_c, nrow = 1)
 ```
-```{r}
+```{r expression rrho}
 rrho_zic1 = rasterGrob(readPNG("../results/invitro/rrho/zic1_dev_RRHO_neg.png"))
 rrho_zic2 = rasterGrob(readPNG("../results/invitro/rrho/zic2_dev_RRHO_neg.png"))
 
@@ -122,41 +234,44 @@ plot_grid(rrho_zic1, rrho_zic2)
 
 ```
 ```{r supp fig, fig.height=6, fig.width=10}
-supp = plot_grid(volc_a, volc_b, volc_c,rrho_zic1,rrho_zic1,  nrow = 2, labels = LETTERS[1:5])
+supp = plot_grid(volc_a, volc_b, volc_c,rrho_zic1,rrho_zic2,  nrow = 2, labels = LETTERS[1:5])
 
-png("../figures/supp_figure_vitro.png", height = 6, width = 10, res = 300, units = "in")
-supp
-dev.off()
+# png("../figures/supp_figure_vitro.png", height = 6, width = 10, res = 300, units = "in")
+# supp
+# dev.off()
 
 supp
 ```
 
 Zic Cut n run stats
-```{r }
+```{r cutnrun MA}
+
+
 ma  = plot_ma(zic_cuntnrun, 2.25, 1.5, -1.85, "DIV7/DIV3")
-ma7v1  = plot_ma(zic_cuntnrun7v1, 2.5, 1.5, -1.85, "DIV7/DIV1")
+ma7v1  = plot_ma(zic_cuntnrun7v1, 2.5, 1.5, -1.85, "DIV7/DIV1" )
 ma7v5  = plot_ma(zic_cuntnrun7v5, 2.5, .5, -.5, "DIV7/DIV5")
 ma3v1  = plot_ma(zic_cuntnrun3v1, 2.5, 2, -1.1, "DIV3/DIV1")
 ma5v1  = plot_ma(zic_cuntnrun5v1, 2.5, 1.5, -1.85, "DIV5/DIV1")
 ma5v3  = plot_ma(zic_cuntnrun5v3, 2.5, .5, -.7, "DIV5/DIV3")
 
+
 ma
 ```
 
 
-```{r, fig.height=10, fig.width=12}
+```{r suopp fig ma, fig.height=10, fig.width=12}
 
 supp2 = plot_grid(ma7v1, ma7v5,ma3v1, ma5v1, ma5v3, nrow = 3, labels = LETTERS[1:5] )
 
-png("../figures/supp_figure_cutrun.png", height = 10, width = 12, res = 300, units = "in")
-supp2
-dev.off()
+# png("../figures/supp_figure_cutrun.png", height = 10, width = 12, res = 300, units = "in")
+# supp2
+# dev.off()
 
 supp2
 ```
 
-
-```{r}
+# comparing zic cut n run in vivo to zic chip
+```{r cutnrun peak size}
 
 size = bind_rows(list(Early = zic_cutnrun_anno_down@anno %>% as_tibble(),
                Late = zic_cutnrun_anno_up@anno %>% as_tibble(),
@@ -172,7 +287,7 @@ size = bind_rows(list(Early = zic_cutnrun_anno_down@anno %>% as_tibble(),
 size
 ```
 
-```{r}
+```{r cutnrun loci}
 
 loci = bind_rows(list(DIV7= zic_cutnrun_anno_up@annoStat, DIV3 = zic_cutnrun_anno_down@annoStat, Static = zic_cutnrun_anno_static@annoStat),.id = "id") %>% 
   dplyr::mutate(Feature2 = case_when( grepl("Promoter", Feature) ~ "Promoter Proximal",
@@ -191,9 +306,122 @@ loci
 
 ```
 
+```{r PCA}
+## Prefiltering
+keep <- rowSums(counts(deseq_obj_cutnrun_union)) >= 20
+deseq_obj_cutnrun_union <- deseq_obj_cutnrun_union[keep,]
 
+## VST
+deseq_cutnrun_vst <- vst(deseq_obj_cutnrun_union[,1:12],blind = TRUE)
+deseq_chip_vst <- vst(deseq_obj_cutnrun_union[,13:16],blind = TRUE)
+deseq_vst <- vst(deseq_obj_cutnrun_union,blind = TRUE)
+```
+
+
+```{r PCA,fig.height=12, fig.width=4}
+## plot PCA
+pca_vivo = plotPCA(object = deseq_cutnrun_vst,intgroup=c("time")) + 
+  theme_classic() +
+  theme(legend.title = element_blank())+
+  scale_color_manual(limits = c("D1Z", "D3Z", "D5Z", "D7Z"), labels = c("DIV1", "DIV3", "DIV5", "DIV7"), values = c("#fbd2ff", "#ff80ee", "#cb80ff", "#008fff"))
+
+pca_vitro = plotPCA(object = deseq_chip_vst,intgroup=c("time")) + 
+  theme_classic() +
+  theme(legend.title = element_blank())+
+  scale_color_manual(limits = c( "P7", "P60"), labels = c("P7", "P60"), values = c( "red", "blue"))
+
+pca_all = plotPCA(object = deseq_vst,intgroup=c("time")) + 
+  theme_classic() +
+  theme(legend.title = element_blank())+
+  scale_color_manual(limits = c("D1Z", "D3Z", "D5Z", "D7Z", "P7", "P60"), labels = c("DIV1", "DIV3", "DIV5", "DIV7", "P7", "P60"), values = c("#fbd2ff", "#ff80ee", "#cb80ff", "#008fff", "red", "blue"))
+
+plot_grid(pca_vivo,pca_vitro, pca_all, ncol=1)
+
+```
+```{r peak overlap}
+
+# get in vitro peaks
+chip_macs_peaks_dir <- "../results/invivo/DiffExp_ZicChIP/"
+chip_macs_peaks_files <- list.files(chip_macs_peaks_dir,pattern = "P60")
+chip_macs_peaks_full <- paste0(chip_macs_peaks_dir,chip_macs_peaks_files)
+chip_macs_peaks_names <- c("P7","NS","P60")
+
+chip_macs_granges <- lapply(chip_macs_peaks_full, import.bedGraph)
+
+names(chip_macs_granges) <- chip_macs_peaks_names
+
+# get in vitro peaks
+peaks_DIV3 <- rtracklayer::import("../results/invitro/diffbind_cutnrun_zic/res_7v3_down.bed")
+peaks_DIV7 <- rtracklayer::import("../results/invitro/diffbind_cutnrun_zic/res_7v3_up.bed")
+
+diff_peaks_overlaps_by_element <- rbind(get_overlaps_by_element(peaks_DIV3, chip_macs_granges$P7),
+get_overlaps_by_element(peaks_DIV3, chip_macs_granges$P60),
+get_overlaps_by_element(peaks_DIV7, chip_macs_granges$P7),
+get_overlaps_by_element(peaks_DIV7, chip_macs_granges$P60))
+
+
+diff_peaks_overlaps_by_element$set1 <- c("DIV3" , "DIV3", "DIV7", "DIV7")
+diff_peaks_overlaps_by_element$set2 <- c("Early", "Late", "Early", "Late")
+
+ov = diff_peaks_overlaps_by_element %>%
+  dplyr::select(-setdiff2, -intersection2) %>%
+  pivot_longer(where(is.numeric)) %>%
+  group_by(set1,set2) %>%
+  mutate(percentage = 100 * value / sum(value)) %>%
+  ungroup() %>%
+  mutate(name = fct_relevel(name,"setdiff1","intersection1"),
+         name = fct_recode(name, "overlap" = "intersection1", "no overlap" = "setdiff1"),
+         set2 = fct_relevel(set2,"Early","Late")) %>%
+  filter(name == "overlap") %>%
+  ggplot(aes(y = percentage, x = set2, fill = set2)) +
+    geom_col(width = 0.5) +
+    ylab(NULL) +
+    ylab("Percentage") +
+    xlab(NULL) +
+    scale_fill_manual(values = c("Early"="red","Late"="blue")) +
+    theme_bw() +
+    theme(legend.title = element_blank(),
+        strip.background = element_rect(fill = "white"),
+        strip.text = element_text(color = "black", size = 12)) +
+    facet_grid(~set1) +
+    ylim(c(0,100)) +
+    geom_text(aes(label = paste0(round(percentage),"%")),nudge_y = 2)
+
+ov
+```
+```{r supp chip-cutnrun, fig.width=8, fig.height=6}
+colrs = c("#fbd2ff", "#ff80ee", "#cb80ff", "#008fff", "red", "blue")
+names(colrs) = c("DIV1", "DIV3", "DIV5", "DIV7", "P7", "P60")
+
+ma7v3  = plot_ma(zic_cuntnrun, 2.25, 1.5, -1.85, "DIV7/DIV3",   as.character(colrs["DIV7"]),as.character(colrs["DIV3"]))
+ma7v1  = plot_ma(zic_cuntnrun7v1, 2.5, 1.5, -1.85, "DIV7/DIV1", as.character(colrs["DIV7"]),as.character(colrs["DIV1"]))
+ma7v5  = plot_ma(zic_cuntnrun7v5, 2.5, .5, -.5, "DIV7/DIV5",    as.character(colrs["DIV7"]),as.character(colrs["DIV5"]))
+ma3v1  = plot_ma(zic_cuntnrun3v1, 2.5, 2, -1.1, "DIV3/DIV1",    as.character(colrs["DIV3"]),as.character(colrs["DIV1"]))
+ma5v1  = plot_ma(zic_cuntnrun5v1, 2.5, 1.5, -1.85, "DIV5/DIV1", as.character(colrs["DIV5"]),as.character(colrs["DIV1"]))
+ma5v3  = plot_ma(zic_cuntnrun5v3, 2.5, .5, -.7, "DIV5/DIV3",    as.character(colrs["DIV5"]),as.character(colrs["DIV3"]))
+```
+
+
+```{r supp chip-cutnrun, fig.width=15, fig.height=15}
+supp_cc = plot_grid(ma7v1, ma7v3, ma7v5,ma3v1, ma5v1, ma5v3,pca_vivo,pca_vitro, pca_all, ov, ncol = 3, labels = LETTERS[1:9] )
+
+png("../figures/supp_figure_cutrun.png", height = 15, width = 15, res = 300, units = "in")
+supp_cc
+dev.off()
+
+supp_cc
+```
+
+
+```{r supp chip-cutnrun, fig.width=8, fig.height=6}
+plot_grid(pca_vivo,pca_vitro, pca_all, ov, ncol=2, labels = LETTERS[1:4])
+
+```
+
+
+## Explore ZDD genes
 Zic1 log2FC vs number of in vitro peaks
-```{r, fig.height=8, fig.width=12}
+```{r num peak to genes, fig.height=8, fig.width=12}
 a = invitro_data %>% 
   dplyr::select( gene_names, dev_log2foldchange, dev_padj,  zic_peak, num_peaks) %>% 
   distinct() %>% 
@@ -233,7 +461,7 @@ plot_grid(a,b, ncol = 1)
 Zic1 KD/Ctrl vs D7/D3 
 
 
-```{r, fig.height=8, fig.width=12}
+```{r zic dependent genes, fig.height=8, fig.width=12}
 c = invitro_data %>% 
   dplyr::select(zic_peak, id, dev_log2foldchange,log2foldchange,gene_names, bothKD, cat, num_peaks ) %>% 
   distinct() %>% 
@@ -253,6 +481,7 @@ c = invitro_data %>%
 c
 
 ```
+
 ```{r}
 invitro_data %>% 
   dplyr::select(gene_names,cat) %>% 
@@ -264,7 +493,7 @@ invitro_data %>%
 
 
 
-```{r, fig.width= 6, fig.height=8}
+```{r ZDD peak to genes, fig.width= 6, fig.height=8}
 
 
 d1 = dotplot(zdd_t_bp) + 
@@ -284,9 +513,6 @@ plot_grid(d1, d2, ncol = 1)
  
   
 ```
-
-
-
 
 
 
@@ -366,6 +592,7 @@ e = plot_grid(plot_grid(e1, e2),
 e
 e2
 ```
+
 ```{r}
 plt_dat %>% 
   dplyr::select(gene_names, cat) %>% 
@@ -374,16 +601,75 @@ plt_dat %>%
   dplyr::count()
 ```
 
-```{r, fig.width=15, fig.height=15}
+```{r example track of ZDD genes}
 
+# formatting data
+genomeAxis <- GenomeAxisTrack(name="MyAxis") 
+customFromTxDb <- GeneRegionTrack(TxDb.Mmusculus.UCSC.mm10.knownGene)
+
+# make bigwig tracks
+D3_zic_bw1 <- DataTrack(import.bw("../sequencing_data/invitro_data/cutnrun_zic/bws/R110-D3Z_S10_L001_norm.bw", as="GRanges"), 
+                   genome = "mm10",name = "Zic \nDIV3", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+D3_zic_bw2 <- DataTrack(import.bw("../sequencing_data/invitro_data/cutnrun_zic/bws/R122-D3Z_S22_L001_norm.bw", as="GRanges"), 
+                   genome = "mm10",name = "Zic \nDIV3", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+D3_zic_bw3 <- DataTrack(import.bw("../sequencing_data/invitro_data/cutnrun_zic/bws/R130-D3Z_S30_L001_norm.bw", as="GRanges"), 
+                   genome = "mm10",name = "Zic \nDIV3", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+
+D7_zic_bw1 <- DataTrack(import.bw("../sequencing_data/invitro_data/cutnrun_zic/bws/R112-D7Z_S12_L001_norm.bw", as="GRanges"), 
+                   genome = "mm10",name = "Zic \nDIV7", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+D7_zic_bw2 <- DataTrack(import.bw("../sequencing_data/invitro_data/cutnrun_zic/bws/R124-D7Z_S24_L001_norm.bw", as="GRanges"), 
+                   genome = "mm10",name = "Zic \nDIV7", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+D7_zic_bw3 <- DataTrack(import.bw("../sequencing_data/invitro_data/cutnrun_zic/bws/R132-D7Z_S32_L001_norm.bw", as="GRanges"), 
+                   genome = "mm10",name = "Zic \nDIV7", col.title = "white", col.border.title = "black", fill.histogram = "darkblue", col.histogram = "darkblue") 
+
+# interaction track
+all_loops = bind_rows(loop_data_adult, loop_data_young)
+
+interaction_track <- InteractionTrack(GenomicInteractions(GRanges(seqnames = all_loops$X1, ranges = IRanges(all_loops$X2, all_loops$X3)), 
+                                                          GRanges(seqnames = all_loops$X4, ranges = IRanges(all_loops$X5, all_loops$X6))), 
+                                      name = "Chromatin Loops")
+
+## plot
+tracks <- list(
+            interaction_track,
+            D3_zic_bw1,
+            D3_zic_bw2,
+            D3_zic_bw3,
+            D7_zic_bw1,
+            D7_zic_bw2,
+            D7_zic_bw3)
+```
+
+```{r, fig.width=12, fig.height=6}
+png("../figures/fig4_example_Nhlh1.png", units = "in", height = 4, width = 12, res = 300)
+plot_track("Nhlh1", tracks,  expand_l = 25000, expand_r = 400000, ylim = c(0,2),highlight_gene = T, g_exp_l = 18000, g_exp_r = 25000) #
+dev.off()
+
+png("../figures/fig4_example_Ets2.png", units = "in", height = 4, width = 12, res = 300)
+plot_track("Ets2", tracks,  expand_l = 75000, expand_r = 265000, ylim = c(0,2),highlight_gene = T, g_exp_l = 18000, g_exp_r = 25000) #
+dev.off()
+
+```
+```{r}
+track_zdd1 = rasterGrob(readPNG("../figures/fig4_example_Nhlh1.png"))
+track_zdd2 = rasterGrob(readPNG("../figures/fig4_example_Ets2.png"))
+
+```
+![](../figures/fig4_example_Nhlh1.png)
+
+![](../figures/fig4_example_Ets2.png)
+
+```{r fig4, fig.width=15, fig.height=15}
+tracks_fig = plot_grid(track_zdd1, track_zdd2, ncol = 1, labels = c("F", "G"), vjust = 1)
+go_fig = plot_grid(d1, d2, labels = c("H", "I"), ncol =1, rel_heights = c(.6, .4))
 
 fig4 = plot_grid(plot_grid(plot_grid( c, plot_grid(ma, size, loci, nrow =1, labels = c("B", "C", "D"), rel_widths = c(.5, .2, .3)), ncol =1,  rel_heights = c(.7, .3), labels = c("A", "")),
            e2,
            labels = c("", "E"),
            rel_widths = c(.7, .3),
            nrow = 1),
- plot_grid(d1, d2, labels = c("F", "G"), nrow =1, rel_heights = c(.6, .4)),
- rel_heights = c(.7, .3),
+ plot_grid(tracks_fig, go_fig, nrow =1, rel_widths = c(.65, .35)),
+ rel_heights = c(.55, .45),
  ncol = 1)
 
 
