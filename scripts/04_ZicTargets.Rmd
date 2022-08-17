@@ -81,12 +81,18 @@ loop_data_young <- readxl::read_excel("../sequencing_data/Reddy/GSE164360_Hi-C_S
                 X4 = ifelse(is.na(X4), "chrX", paste0("chr",X4)))
 
 # TF enrichment results
+dev_bart = read_tsv("../results/invitro/bart_results/dev_anchors/bart_results.txt")
+zd_bart  = read_tsv("../results/invitro/bart_results/zd_anchors/bart_results.txt")
+zdd_bart = read_tsv("../results/invitro/bart_results/zdd_anchors/bart_results.txt")
+
 devVzdd_bart = read_tsv("../results/invitro/beds/rrho/devVzdd_anchors.txt")
 devVzd_bart = read_tsv("../results/invitro/beds/rrho/devVzd_anchors.txt")
 zdVzdd_bart = read_tsv("../results/invitro/beds/rrho/zdVzdd_anchors.txt")
 devVzdd_homer = read_tsv("../results/invitro/beds/rrho/devVzdd_anchors_homer.txt")
 devVzd_homer = read_tsv("../results/invitro/beds/rrho/devVzd_anchors_homer.txt")
 zdVzdd_homer = read_tsv("../results/invitro/beds/rrho/zdVzdd_anchors_homer.txt")
+
+
 ```
 
 
@@ -479,7 +485,7 @@ ma5v3  = plot_ma(zic_cuntnrun5v3, 2.5, .5, -.7, "DIV5/DIV3",    as.character(col
 
 
 ```{r supp chip-cutnrun, fig.width=15, fig.height=15}
-supp_cc = plot_grid(ma7v1, ma7v3, ma7v5,ma3v1, ma5v1, ma5v3,pca_vivo,pca_vitro, pca_all, ov, ncol = 3, labels = LETTERS[1:9] )
+supp_cc = plot_grid(ma7v1, ma7v3, ma7v5,ma3v1, ma5v1, ma5v3,pca_vivo,pca_vitro, pca_all, ov, ncol = 3, labels = LETTERS[1:10] )
 
 png("../figures/supp_figure_cutrun.png", height = 15, width = 15, res = 300, units = "in")
 supp_cc
@@ -734,8 +740,73 @@ track_zdd2 = rasterGrob(readPNG("../figures/fig4_example_Ets2.png"))
 ![](../figures/fig4_example_Nhlh1.png)
 
 ![](../figures/fig4_example_Ets2.png)
+```{r TF enrichment, fig.height=10, fig.width=12}
+tf_b_1 = dev_bart %>% 
+  dplyr::mutate(TF = fct_reorder(TF, -log10(dev_anchors))) %>% 
+  dplyr::mutate(gene_sig = case_when(log2FoldChange > 1 & padj < 0.05 ~ "DIV7",
+                log2FoldChange < -1 & padj < 0.05 ~ "DIV3",
+                is.na(padj) ~ "filtered",
+                TRUE ~ "Static")) %>% 
+    dplyr::filter(bart_sig %in% "Enriched") %>% 
+    dplyr::filter(gene_sig != "filtered") %>% 
+    dplyr::filter(!grepl("zic", TF, ignore.case = T)) %>% 
+    dplyr::select(TF, gene_sig, ends_with("anchors")) %>% 
+  ggplot(aes(y = TF, x = dev_anchors, fill = dev_anchors)) +
+    geom_col() +
+    theme_classic() +
+    facet_grid(gene_sig~., scales = "free", space = "free") +
+    labs( x = "adjusted p-value", y = "Developmental TFs")
 
+
+tf_b_2 = zd_bart %>% 
+  dplyr::mutate(TF = fct_reorder(TF, -log10(zd_anchors))) %>% 
+  dplyr::mutate(gene_sig = case_when(log2FoldChange > 1 & padj < 0.05 ~ "DIV7",
+                log2FoldChange < -1 & padj < 0.05 ~ "DIV3",
+                is.na(padj) ~ "filtered",
+                TRUE ~ "Static")) %>% 
+    dplyr::filter(bart_sig %in% "Enriched") %>% 
+    dplyr::filter(gene_sig != "filtered") %>% 
+    dplyr::filter(!grepl("zic", TF, ignore.case = T)) %>% 
+  dplyr::select(TF, gene_sig, ends_with("anchors")) %>% 
+  distinct() %>% 
+  ggplot(aes(y = TF, x = zd_anchors, fill = zd_anchors)) +
+    geom_col() +
+    theme_classic() +
+    facet_grid(gene_sig~., scales = "free", space = "free") +
+    labs( x = "adjusted p-value", y = "Zic Dependent TFs")
+
+tf_b_3 = zdd_bart %>% 
+  dplyr::mutate(TF = fct_reorder(TF, -log10(zdd_anchors))) %>% 
+  dplyr::mutate(gene_sig = case_when(log2FoldChange > 1 & padj < 0.05 ~ "DIV7",
+                log2FoldChange < -1 & padj < 0.05 ~ "DIV3",
+                is.na(padj) ~ "filtered",
+                TRUE ~ "Static")) %>% 
+    dplyr::filter(bart_sig %in% "Enriched") %>% 
+    dplyr::filter(gene_sig != "filtered") %>% 
+    dplyr::filter(!grepl("zic", TF, ignore.case = T)) %>% 
+  dplyr::select(TF, gene_sig, ends_with("anchors")) %>% 
+  distinct() %>% 
+  ggplot(aes(y = TF, x = zdd_anchors, fill = zdd_anchors)) +
+    geom_col() +
+    theme_classic() +
+    facet_grid(gene_sig~., scales = "free", space = "free") +
+    labs( x = "adjusted p-value", y = "Zic Dependent Developmental TFs")
+
+plot_grid(tf_b_1, tf_b_2, tf_b_3, nrow =1)
+```
 ```{r}
+rrho_b1 = rasterGrob(readPNG("../figures/devVzdd_anchors.png"))
+rrho_b2 = rasterGrob(readPNG("../figures/zdvzdd_anchors.png"))
+rrho_b3 = rasterGrob(readPNG("../figures/devVzd_anchors.png"))
+```
+
+![](../figures/devVzdd_anchors.png)
+
+![](../figures/zdVzdd_anchors.png)
+
+![](../figures/devVzd_anchors.png)
+
+```{r TF distinct enrichment, fig.height= 8, fig.width=15}
 b1 = devVzdd_bart %>% 
   dplyr::mutate(label = ifelse(enriched_in != "Similar Enrichment",TF, "" )) %>% 
   ggplot(aes(x = -log10(dev_anchors), y = -log10(zdd_anchors), color = enriched_in, label = label)) +
@@ -807,6 +878,22 @@ h3 = devVzd_homer %>%
 
 
 plot_grid(b1, b2, b3, h1, h2, h3, nrow = 2)
+```
+
+
+```{r TF enrichment, fig.height= 15, fig.width=15}
+supp_gene_dis = plot_grid( plot_grid(tf_b_1, tf_b_2, tf_b_3, nrow =1, labels = c("A", "B", "C")),
+           plot_grid(rrho_b1, rrho_b2, rrho_b1, nrow =1, labels = c("D", "E", "F")),
+           plot_grid(b3,b2, b1, nrow = 1, labels = c("G", "H", "I")),
+           ncol = 1,
+           rel_heights = c(.55, .15, .3)
+)
+
+png("../figures/supp_figure_distinct.png", height = 15, width = 15, res = 300, units = "in")
+supp_gene_dis
+dev.off()
+
+supp_gene_dis
 ```
 
 ```{r fig4, fig.width=15, fig.height=15}
