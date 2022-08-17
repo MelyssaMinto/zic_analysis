@@ -15,6 +15,7 @@ dev_genes <- read_tsv("../../results/invitro/diffexpr/res_d7_d3_ashr.tsv")
 # Read In vitro Zic data
 zic_invitro <- read_tsv("../../results/FinalTables/invitro_mapped_data.txt")
 zic_invivo <- read_tsv("../../results/FinalTables/mapped_data.txt")
+loop_data <- read_tsv("../../results/FinalTables/loop_data.txt")
 
 # Zic diff info
 zic_diff_peaks <- as.data.frame(readRDS("../../results/invitro/diffbind_cutnrun_zic/peaks_7v3_all_annotation.Rds"))
@@ -160,6 +161,90 @@ invitro_data =
                                      TRUE ~ "Static")) 
  
 
+# > export Dev, Zic Dep, and ZDD gene regulatory regions ------------------------------------
+
+invitro_data %>% 
+  dplyr::filter(cat == "Zic Dependent Developmental") %>% 
+  dplyr::select(loop_id) %>% 
+  dplyr::left_join(loop_data, by = c("loop_id" = "id")) %>% 
+  dplyr::select(starts_with("anchor")) %>% 
+  pivot_longer(cols = starts_with("anchor")) %>% 
+  dplyr::mutate(chr = str_extract(value,"[^\\:]+") ,
+                start = str_extract(value, "(?<=:).+(?=-)") , 
+                end = str_extract(value, "\\b\\w+$") ) %>% 
+  dplyr::select(-name, -value) %>% 
+  distinct() %>% 
+  drop_na() %>% 
+  dplyr::mutate(name = ".", score = 1, strand = ".") %>% 
+  write_tsv("../../results/invitro/beds/zdd_anchors.bed", col_names = F)
+
+invitro_data %>% 
+  dplyr::filter(cat == "Zic Dependent") %>% 
+  dplyr::select(loop_id) %>% 
+  dplyr::left_join(loop_data, by = c("loop_id" = "id")) %>% 
+  dplyr::select(starts_with("anchor")) %>% 
+  pivot_longer(cols = starts_with("anchor")) %>% 
+  dplyr::mutate(chr = str_extract(value,"[^\\:]+") ,
+                start = str_extract(value, "(?<=:).+(?=-)") , 
+                end = str_extract(value, "\\b\\w+$") ) %>% 
+  dplyr::select(-name, -value) %>% 
+  distinct() %>% 
+  drop_na() %>% 
+  dplyr::mutate(name = ".", score = 1, strand = ".") %>% 
+  write_tsv("../../results/invitro/beds/zd_anchors.bed", col_names = F)
+
+invitro_data %>% 
+  dplyr::filter(cat == "Developmental") %>% 
+  dplyr::select(loop_id) %>% 
+  dplyr::left_join(loop_data, by = c("loop_id" = "id")) %>% 
+  dplyr::select(starts_with("anchor")) %>% 
+  pivot_longer(cols = starts_with("anchor")) %>% 
+  dplyr::mutate(chr = str_extract(value,"[^\\:]+") ,
+                start = str_extract(value, "(?<=:).+(?=-)") , 
+                end = str_extract(value, "\\b\\w+$") ) %>% 
+  dplyr::select(-name, -value) %>% 
+  distinct() %>% 
+  drop_na() %>% 
+  dplyr::mutate(name = ".", score = 1, strand = ".") %>% 
+  write_tsv("../../results/invitro/beds/dev_anchors.bed", col_names = F)
+
+
+invitro_data %>% 
+  dplyr::filter(cat == "Zic Dependent Developmental") %>% 
+  dplyr::select(zic_peak) %>% 
+  dplyr::mutate(chr = str_extract(zic_peak,"[^\\:]+") ,
+                start = str_extract(zic_peak, "(?<=:).+(?=-)") , 
+                end = str_extract(zic_peak, "\\b\\w+$") ) %>% 
+  dplyr::select(-zic_peak) %>% 
+  distinct() %>% 
+  drop_na() %>% 
+  dplyr::mutate(name = ".", score = 1, strand = ".") %>% 
+  write_tsv("../../results/invitro/beds/zdd_zicPeaks.bed", col_names = F)
+
+invitro_data %>% 
+  dplyr::filter(cat == "Zic Dependent") %>% 
+  dplyr::select(zic_peak) %>% 
+  dplyr::mutate(chr = str_extract(zic_peak,"[^\\:]+") ,
+                start = str_extract(zic_peak, "(?<=:).+(?=-)") , 
+                end = str_extract(zic_peak, "\\b\\w+$") ) %>% 
+  dplyr::select(-zic_peak) %>% 
+  distinct() %>% 
+  drop_na() %>% 
+  dplyr::mutate(name = ".", score = 1, strand = ".") %>% 
+  write_tsv("../../results/invitro/beds/zd_zicPeaks.bed", col_names = F)
+
+invitro_data %>% 
+  dplyr::filter(cat == "Developmental") %>% 
+  dplyr::select(zic_peak) %>% 
+  dplyr::mutate(chr = str_extract(zic_peak,"[^\\:]+") ,
+                start = str_extract(zic_peak, "(?<=:).+(?=-)") , 
+                end = str_extract(zic_peak, "\\b\\w+$") ) %>% 
+  dplyr::select(-zic_peak) %>% 
+  distinct() %>% 
+  drop_na() %>% 
+  dplyr::mutate(name = ".", score = 1, strand = ".") %>% 
+  write_tsv("../../results/invitro/beds/dev_zicPeaks.bed", col_names = F)
+  
 
 
 # > Adding GO enrichment --------------------------------------------------

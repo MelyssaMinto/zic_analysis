@@ -80,6 +80,13 @@ loop_data_young <- readxl::read_excel("../sequencing_data/Reddy/GSE164360_Hi-C_S
   dplyr::mutate(X1 = ifelse(is.na(X1), "chrX", paste0("chr",X1)),
                 X4 = ifelse(is.na(X4), "chrX", paste0("chr",X4)))
 
+# TF enrichment results
+devVzdd_bart = read_tsv("../results/invitro/beds/rrho/devVzdd_anchors.txt")
+devVzd_bart = read_tsv("../results/invitro/beds/rrho/devVzd_anchors.txt")
+zdVzdd_bart = read_tsv("../results/invitro/beds/rrho/zdVzdd_anchors.txt")
+devVzdd_homer = read_tsv("../results/invitro/beds/rrho/devVzdd_anchors_homer.txt")
+devVzd_homer = read_tsv("../results/invitro/beds/rrho/devVzd_anchors_homer.txt")
+zdVzdd_homer = read_tsv("../results/invitro/beds/rrho/zdVzdd_anchors_homer.txt")
 ```
 
 
@@ -213,6 +220,75 @@ plot_track <- function(gene, tracks, highlight=NULL, w = 1000, expand_l= 0, expa
                sizes = s)
   
   
+}
+
+distinct_lolipop  <- function(data, cond1, cond2, gene_expr_level) {
+  # plot set up
+   
+  # extract data
+  d1 = data %>%  
+    # determine whether each TF is enriched in one set v another set
+    dplyr::mutate(enrich_sig = ifelse(enriched_in == cond1, get(cond1), get(cond2))) %>% 
+    # filter for significant TFs in set1
+    dplyr::filter(enriched_in %in% c(cond1)) %>% 
+    # remove significance column
+    dplyr::select(-all_of(cond1)) %>% 
+    # cleaning up TF names and creating label for plotting
+    dplyr::mutate(TF = gsub("-", "", TF)) %>% 
+    dplyr::mutate(label = ifelse(str_to_lower(TF) != str_to_lower(SYMBOL), paste0(TF, "(", SYMBOL, ")"), TF),
+                  label = fct_reorder(label, -enrich_sig)) 
+  
+  d2 =  data %>% 
+    # determine whether each TF is enriched in one set v another set
+    dplyr::mutate(enrich_sig = ifelse(enriched_in == cond1, get(cond1), get(cond2))) %>% 
+    # filter for significant TFs in set2
+    dplyr::filter(enriched_in %in% c(cond2)) %>% 
+     # remove significance column
+    dplyr::select( -all_of(cond2)) %>% 
+    # cleaning up TF names and creating label for plotting
+    dplyr::mutate(TF = gsub("-", "", TF)) %>% 
+    dplyr::mutate(label = ifelse(str_to_lower(TF) != str_to_lower(SYMBOL), paste0(TF, "(", SYMBOL, ")"), TF),
+                  label = fct_reorder(label, -enrich_sig))
+  
+  # plotting data
+    bind_rows(
+      list( Late = d2  %>%
+              # filter out ot time specific gene expression
+              dplyr::filter(p60_mean > gene_expr_level) %>% 
+              # filter for time specific gene regulation
+              dplyr::filter(gene_sig %in% c("UP")) %>% 
+              # sort TF by log fold change
+              dplyr::mutate(label = fct_reorder(label, log2FoldChange)) %>% 
+              # renaming gene means for plotting
+              dplyr::rename(plt_mean = p60_mean),
+            Early = d1 %>% 
+              # filter out ot time specific gene expression
+              dplyr::filter(p7_mean > gene_expr_level) %>% 
+               # filter for time specific gene regulation
+              dplyr::filter(gene_sig %in% c( "DOWN")) %>% 
+              # sort TF by log fold change
+              dplyr::mutate(label = fct_reorder(label, -log2FoldChange))%>% 
+              # renaming gene means for plotting
+              dplyr::rename(plt_mean = p7_mean)),
+      .id = "id") %>% 
+    # plot  
+    ggplot(aes(y = log2FoldChange , x = label, color = enrich_sig, size = plt_mean )) +
+    geom_segment( aes(x=label, xend=label, y=0, yend=log2FoldChange, size = 1), color = "grey", show.legend = FALSE) +
+    geom_hline(yintercept = 0, color = "black", size = .5, linetype = "dashed") +
+    geom_point() +
+    theme_classic() +
+    scale_x_discrete(labels = function(x) str_wrap(x, width = 5))+
+    scale_color_viridis(limits = c(0, 0.05))+
+    facet_grid(id~., scales = "free", space = "free_y", labeller = labeller(facet_labels)) +
+    coord_flip() +
+    theme(legend.position = "bottom", 
+          legend.text = element_text(angle = 45, hjust = 1),
+          strip.text.x = element_markdown() , 
+          axis.text.y = element_text(size = 8),
+          panel.spacing=unit(0,"pt"), 
+          plot.title = element_markdown()) +
+    labs(x = "Enriched TFs" , y = "LFC", color = "TF Enrichment", size = "expression")   
+
 }
 
 ```
@@ -658,6 +734,80 @@ track_zdd2 = rasterGrob(readPNG("../figures/fig4_example_Ets2.png"))
 ![](../figures/fig4_example_Nhlh1.png)
 
 ![](../figures/fig4_example_Ets2.png)
+
+```{r}
+b1 = devVzdd_bart %>% 
+  dplyr::mutate(label = ifelse(enriched_in != "Similar Enrichment",TF, "" )) %>% 
+  ggplot(aes(x = -log10(dev_anchors), y = -log10(zdd_anchors), color = enriched_in, label = label)) +
+  geom_point() +
+  ggrepel::geom_text_repel() +
+  theme_classic() +
+  labs(x = "Developmental Gene Anchors -log10(adj p-val)", y = "ZDD Gene Anchors -log10(adj p-val)")  +
+    scale_color_manual(name = "", limits = c("dev_anchors", "zdd_anchors", "Similar Enrichment"), labels = c("Dev.","ZDD", "Similar \nEnrichment"), values = c("dodgerblue4", "darkorange4", "grey") ) +
+    theme(legend.position = "bottom") +
+    guides(colour = guide_legend(override.aes = list(size=3)))
+
+
+b2 = zdVzdd_bart %>% 
+  dplyr::mutate(label = ifelse(enriched_in != "Similar Enrichment",TF, "" )) %>% 
+  ggplot(aes(x = -log10(zd_anchors), y = -log10(zdd_anchors), color = enriched_in, label = label)) +
+  geom_point() +
+  ggrepel::geom_text_repel() +
+  theme_classic() +
+  labs(x = "Zic Dependent Gene Anchors -log10(adj p-val)", y = "ZDD Gene Anchors -log10(adj p-val)")  +
+    scale_color_manual(name = "", limits = c("zd_anchors", "zdd_anchors", "Similar Enrichment"), labels = c("ZD","ZDD", "Similar \nEnrichment"), values = c("dodgerblue4", "darkorange4", "grey") ) +
+    theme(legend.position = "bottom") +
+    guides(colour = guide_legend(override.aes = list(size=3)))
+
+b3 = devVzd_bart %>% 
+  dplyr::mutate(label = ifelse(enriched_in != "Similar Enrichment",TF, "" )) %>% 
+  ggplot(aes(x = -log10(dev_anchors), y = -log10(zd_anchors), color = enriched_in, label = label)) +
+  geom_point() +
+  ggrepel::geom_text_repel() +
+  theme_classic() +
+  labs(x = "Developmental Gene Anchors -log10(adj p-val)", y = "ZD Gene Anchors -log10(adj p-val)")  +
+    scale_color_manual(name = "", limits = c("dev_anchors", "zd_anchors", "Similar Enrichment"), labels = c("Dev.","ZD", "Similar \nEnrichment"), values = c("dodgerblue4", "darkorange4", "grey") ) +
+    theme(legend.position = "bottom") +
+    guides(colour = guide_legend(override.aes = list(size=3)))
+
+
+h1 = devVzdd_homer %>% 
+  dplyr::mutate(label = ifelse(enriched_in != "Similar Enrichment",TF, "" )) %>% 
+  ggplot(aes(x = -log10(dev_anchors), y = -log10(zdd_anchors), color = enriched_in, label = label)) +
+  geom_point() +
+  ggrepel::geom_text_repel() +
+  theme_classic() +
+  labs(x = "Developmental Gene Anchors -log10(adj p-val)", y = "ZDD Gene Anchors -log10(adj p-val)")  +
+    scale_color_manual(name = "", limits = c("dev_anchors", "zdd_anchors", "Similar Enrichment"), labels = c("Dev.","ZDD", "Similar \nEnrichment"), values = c("dodgerblue4", "darkorange4", "grey") ) +
+    theme(legend.position = "bottom") +
+    guides(colour = guide_legend(override.aes = list(size=3)))
+
+
+h2 = zdVzdd_homer %>% 
+  dplyr::mutate(label = ifelse(enriched_in != "Similar Enrichment",TF, "" )) %>% 
+  ggplot(aes(x = -log10(zd_anchors), y = -log10(zdd_anchors), color = enriched_in, label = label)) +
+  geom_point() +
+  ggrepel::geom_text_repel() +
+  theme_classic() +
+  labs(x = "Zic Dependent Gene Anchors -log10(adj p-val)", y = "ZDD Gene Anchors -log10(adj p-val)")  +
+    scale_color_manual(name = "", limits = c("zd_anchors", "zdd_anchors", "Similar Enrichment"), labels = c("ZD","ZDD", "Similar \nEnrichment"), values = c("dodgerblue4", "darkorange4", "grey") ) +
+    theme(legend.position = "bottom") +
+    guides(colour = guide_legend(override.aes = list(size=3)))
+
+h3 = devVzd_homer %>% 
+  dplyr::mutate(label = ifelse(enriched_in != "Similar Enrichment",TF, "" )) %>% 
+  ggplot(aes(x = -log10(dev_anchors), y = -log10(zd_anchors), color = enriched_in, label = label)) +
+  geom_point() +
+  ggrepel::geom_text_repel() +
+  theme_classic() +
+  labs(x = "Developmental Gene Anchors -log10(adj p-val)", y = "ZD Gene Anchors -log10(adj p-val)")  +
+    scale_color_manual(name = "", limits = c("dev_anchors", "zd_anchors", "Similar Enrichment"), labels = c("Dev.","ZD", "Similar \nEnrichment"), values = c("dodgerblue4", "darkorange4", "grey") ) +
+    theme(legend.position = "bottom") +
+    guides(colour = guide_legend(override.aes = list(size=3)))
+
+
+plot_grid(b1, b2, b3, h1, h2, h3, nrow = 2)
+```
 
 ```{r fig4, fig.width=15, fig.height=15}
 tracks_fig = plot_grid(track_zdd1, track_zdd2, ncol = 1, labels = c("F", "G"), vjust = 1)
