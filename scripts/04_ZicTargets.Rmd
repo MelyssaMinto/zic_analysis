@@ -746,7 +746,7 @@ track_zdd2 = rasterGrob(readPNG("../figures/fig4_example_Ets2.png"))
 tracks_fig = plot_grid(track_zdd1, track_zdd2, ncol = 1, labels = c("F", "G"), vjust = -1)
 go_fig = plot_grid(d1, d2, labels = c("H", "I"), ncol =1, rel_heights = c(.6, .4))
 
-fig4 = plot_grid(plot_grid(plot_grid( c, plot_grid(ma, size, loci, nrow =1, labels = c("B", "C", "D"), rel_widths = c(.5, .2, .3)), ncol =1,  rel_heights = c(.7, .3), labels = c("A", "")),
+fig4 = plot_grid(plot_grid(plot_grid(  plot_grid(ma, size, loci, nrow =1, labels = c("A", "B", "C"),  rel_widths = c(.5, .2, .3)), c, ncol =1,  rel_heights = c(.3, .7), labels = c("", "D")),
            e2,
            labels = c("", "E"),
            rel_widths = c(.7, .3),
@@ -772,6 +772,7 @@ tf_b_1 = dev_bart %>%
     dplyr::filter(gene_sig != "filtered") %>% 
     dplyr::filter(!grepl("zic", TF, ignore.case = T)) %>% 
     dplyr::select(TF, gene_sig, ends_with("anchors")) %>% 
+   distinct() %>%  
   ggplot(aes(y = TF, x = dev_anchors, fill = dev_anchors)) +
     geom_col() +
     theme_classic() +
@@ -789,7 +790,7 @@ tf_b_2 = zd_bart %>%
     dplyr::filter(gene_sig != "filtered") %>% 
     dplyr::filter(!grepl("zic", TF, ignore.case = T)) %>% 
   dplyr::select(TF, gene_sig, ends_with("anchors")) %>% 
-  distinct() %>% 
+  distinct() %>%  
   ggplot(aes(y = TF, x = zd_anchors, fill = zd_anchors)) +
     geom_col() +
     theme_classic() +
@@ -806,7 +807,7 @@ tf_b_3 = zdd_bart %>%
     dplyr::filter(gene_sig != "filtered") %>% 
     dplyr::filter(!grepl("zic", TF, ignore.case = T)) %>% 
   dplyr::select(TF, gene_sig, ends_with("anchors")) %>% 
-  distinct() %>% 
+  distinct() %>%
   ggplot(aes(y = TF, x = zdd_anchors, fill = zdd_anchors)) +
     geom_col() +
     theme_classic() +
