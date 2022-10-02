@@ -582,21 +582,22 @@ invitro_data %>%
 
 
 
-```{r ZDD peak to genes, fig.width= 6, fig.height=8}
+```{r ZDD peak to genes, fig.width= 10.5, fig.height=6}
 
 
 d1 = dotplot(zdd_t_bp) + 
   theme(axis.text.y = element_text(size = 11), axis.text.x = element_text(size =11)) + 
   scale_y_discrete(labels = function(x) str_wrap(x, width = 25)) +
-  scale_x_discrete( labels = str_wrap(c("Fail to Up-regulate", "Fail to Down-regulate"), width = 15)) +
+  scale_x_discrete( labels = str_wrap(c("Fail to Up-regulate", "Fail to Down-regulate"), width = 12)) +
   scale_color_viridis_c(option = "magma")
 
 d2 = cnetplot(zdd_t_bp, showCategory = 5, color_gene = "green", cex_label_gene = 1.25, cex_label_category = 1.6, layout = "fr") + 
-  scale_fill_grey(limits = c("Up", "Down"), labels = c("Fail to Up-regulate", "Fail to Down-regulate")) 
+  scale_fill_grey(limits = c("Up", "Down"), labels = c("Fail to Up-regulate", "Fail to Down-regulate")) +
+  theme(legend.position = "bottom")
 
 d2
 
-plot_grid(d1, d2, ncol = 1)
+plot_grid(d1, d2, nrow = 1, rel_widths = c(.6, .4))
 
 
  
@@ -763,14 +764,15 @@ dev.off()
 ```
 
 
-```{r fig4, fig.width=15, fig.height=15}
+```{r fig4, fig.width=15, fig.height=12}
 
 tracks_fig = plot_grid(track_zdd1, track_zdd2, ncol = 1, labels = c("B", "C"))
-go_fig = plot_grid(d1, d2, labels = c("D", "E"), nrow  =1)
+go_fig = plot_grid(d1, d2, nrow = 1, rel_widths = c(.6, .4), labels = c("D", "E"))
+
 
 
 fig4B = plot_grid( e2,
-                   plot_grid(tracks_fig, go_fig, ncol=1, rel_heights = c(.7, .3)),
+                   plot_grid(tracks_fig, go_fig, ncol=1, rel_heights = c(.6, .4)),
                    labels = c("A"),
                    nrow = 1,
                    rel_widths = c(.4, .6))
@@ -779,7 +781,7 @@ fig4B = plot_grid( e2,
   
 
 
-png("../figures/figure4B.png", height = 15, width = 15, res = 300, units = "in")
+png("../figures/figure4B.png", height = 12, width = 15, res = 300, units = "in")
 fig4B
 dev.off()
 
