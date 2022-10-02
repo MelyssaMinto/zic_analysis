@@ -134,7 +134,14 @@ plot_volcano<- function(data, height, up, down, comp){
     theme(legend.position = "none")
 }
 
-plot_ma <- function(data, x, up, down, comp, color_up = "red", color_down = "blue"){
+plot_ma <- function(data, x, up, down, comp, color_up = "red", color_down = "blue", color_text=T){
+  if(color_text){
+    color_up_text=color_up
+    color_down_text=color_down
+  }else{
+    color_up_text="black"
+    color_down_text="black"
+  }
   plt_dat = data %>% 
   as_tibble() %>% 
   dplyr::mutate(sig = case_when(log2FoldChange > 0 & padj <= 0.05 ~ "UP",
@@ -162,8 +169,8 @@ plot_ma <- function(data, x, up, down, comp, color_up = "red", color_down = "blu
     geom_point() +
     scale_color_manual(limits = c("DOWN", "N.S.", "UP"), values = c(color_down, "black", color_up)) +
     labs(x = "log10(Avg Zic CutnRun Signal)", y = paste0(comp, " Log2FC")) +
-    geom_text(x = x, y = up, label = paste0("Increased Zic Binding\n n = ",num_up), color = color_up)+
-    geom_text(x = x, y = down, label = paste0("Decreased Zic Binding\n n = ",num_down ), color = color_down)+
+    geom_text(x = x, y = up, label = paste0("Increased Zic Binding\n n = ",num_up), color = color_up_text)+
+    geom_text(x = x, y = down, label = paste0("Decreased Zic Binding\n n = ",num_down ), color = color_down_text)+
     theme_classic() +
     theme(legend.position = "none")
 
@@ -475,12 +482,12 @@ ov
 colrs = c("#fbd2ff", "#ff80ee", "#cb80ff", "#008fff", "red", "blue")
 names(colrs) = c("DIV1", "DIV3", "DIV5", "DIV7", "P7", "P60")
 
-ma7v3  = plot_ma(zic_cuntnrun, 2.25, 1.5, -1.85, "DIV7/DIV3",   as.character(colrs["DIV7"]),as.character(colrs["DIV3"]))
-ma7v1  = plot_ma(zic_cuntnrun7v1, 2.5, 1.5, -1.85, "DIV7/DIV1", as.character(colrs["DIV7"]),as.character(colrs["DIV1"]))
-ma7v5  = plot_ma(zic_cuntnrun7v5, 2.5, .5, -.5, "DIV7/DIV5",    as.character(colrs["DIV7"]),as.character(colrs["DIV5"]))
-ma3v1  = plot_ma(zic_cuntnrun3v1, 2.5, 2, -1.1, "DIV3/DIV1",    as.character(colrs["DIV3"]),as.character(colrs["DIV1"]))
-ma5v1  = plot_ma(zic_cuntnrun5v1, 2.5, 1.5, -1.85, "DIV5/DIV1", as.character(colrs["DIV5"]),as.character(colrs["DIV1"]))
-ma5v3  = plot_ma(zic_cuntnrun5v3, 2.5, .5, -.7, "DIV5/DIV3",    as.character(colrs["DIV5"]),as.character(colrs["DIV3"]))
+ma7v3  = plot_ma(zic_cuntnrun, 2.25, 1.5, -1.85, "DIV7/DIV3",   as.character(colrs["DIV7"]),as.character(colrs["DIV3"]), color_text = F)
+ma7v1  = plot_ma(zic_cuntnrun7v1, 2.5, 1.5, -1.85, "DIV7/DIV1", as.character(colrs["DIV7"]),as.character(colrs["DIV1"]), color_text = F)
+ma7v5  = plot_ma(zic_cuntnrun7v5, 2.5, .5, -.5, "DIV7/DIV5",    as.character(colrs["DIV7"]),as.character(colrs["DIV5"]), color_text = F)
+ma3v1  = plot_ma(zic_cuntnrun3v1, 2.5, 2, -1.1, "DIV3/DIV1",    as.character(colrs["DIV3"]),as.character(colrs["DIV1"]), color_text = F)
+ma5v1  = plot_ma(zic_cuntnrun5v1, 2.5, 1.5, -1.85, "DIV5/DIV1", as.character(colrs["DIV5"]),as.character(colrs["DIV1"]), color_text = F)
+ma5v3  = plot_ma(zic_cuntnrun5v3, 2.5, .5, -.7, "DIV5/DIV3",    as.character(colrs["DIV5"]),as.character(colrs["DIV3"]), color_text = F)
 ```
 
 
@@ -653,6 +660,7 @@ e1 = plt_dat %>%
         legend.position = "none")
 
 e2 = plt_dat %>% 
+  dplyr::mutate(gene_labels2 = gsub("color:", "background-color:", gene_labels)) %>% 
   dplyr::filter(cat == "Zic Dependent Developmental") %>% 
   # plot
   ggplot(aes(y = gene_labels, fill =zic_sig))+
@@ -743,24 +751,43 @@ track_zdd2 = rasterGrob(readPNG("../figures/fig4_example_Ets2.png"))
 
 
 ```{r fig4, fig.width=15, fig.height=15}
-tracks_fig = plot_grid(track_zdd1, track_zdd2, ncol = 1, labels = c("F", "G"), vjust = -1)
-go_fig = plot_grid(d1, d2, labels = c("H", "I"), ncol =1, rel_heights = c(.6, .4))
-
-fig4 = plot_grid(plot_grid(plot_grid(  plot_grid(ma, size, loci, nrow =1, labels = c("A", "B", "C"),  rel_widths = c(.5, .2, .3)), c, ncol =1,  rel_heights = c(.3, .7), labels = c("", "D")),
-           e2,
-           labels = c("", "E"),
-           rel_widths = c(.7, .3),
-           nrow = 1),
- plot_grid(tracks_fig, go_fig, nrow =1, rel_widths = c(.65, .35)),
- rel_heights = c(.55, .45),
- ncol = 1)
+plot_grid(
+  plot_grid(ma, size, loci, nrow =1, labels = c("A", "B", "C"),  rel_widths = c(.5, .2, .3)),
+  c, ncol =1,  rel_heights = c(.3, .7), labels = c("", "D"))
 
 
-png("../figures/figure4.png", height = 15, width = 15, res = 300, units = "in")
-fig4
+png("../figures/figure4A.png", height = 15, width = 15, res = 300, units = "in")
+fig4A
 dev.off()
-fig4
+
 ```
+
+
+```{r fig4, fig.width=15, fig.height=15}
+
+tracks_fig = plot_grid(track_zdd1, track_zdd2, ncol = 1, labels = c("B", "C"))
+go_fig = plot_grid(d1, d2, labels = c("D", "E"), nrow  =1)
+
+
+fig4B = plot_grid( e2,
+                   plot_grid(tracks_fig, go_fig, ncol=1, rel_heights = c(.7, .3)),
+                   labels = c("A"),
+                   nrow = 1,
+                   rel_widths = c(.4, .6))
+                   
+  
+  
+
+
+png("../figures/figure4B.png", height = 15, width = 15, res = 300, units = "in")
+fig4B
+dev.off()
+
+
+fig4B
+```
+
+
 ```{r TF enrichment, fig.height=10, fig.width=12}
 tf_b_1 = dev_bart %>% 
   dplyr::mutate(TF = fct_reorder(TF, -log10(dev_anchors))) %>% 
